@@ -1,7 +1,9 @@
 from __future__ import annotations
+
 import asyncio
 import json
 from datetime import UTC, datetime
+
 from nexor_x.ai.ollama import OllamaService
 from nexor_x.config import Settings
 from nexor_x.core.event_bus import EventBus
@@ -13,6 +15,8 @@ from nexor_x.infrastructure.binance import BinanceMarketDataService
 from nexor_x.infrastructure.database import DatabaseService
 from nexor_x.infrastructure.telegram import TelegramService
 from nexor_x.logging import logger
+from nexor_x.market.engine import MarketIntelligenceEngine
+
 
 class Kernel:
     def __init__(self, settings: Settings) -> None:
@@ -20,7 +24,13 @@ class Kernel:
         self.event_bus = EventBus()
         self.registry = ServiceRegistry()
         self.database = DatabaseService(settings.nexor_database_path)
-        self.binance = BinanceMarketDataService(settings.binance_testnet)
+        self.binance = BinanceMarketDataService(
+            settings.binance_testnet,
+            cache_ttl_seconds=settings.market_cache_ttl_seconds,
+            stale_after_seconds=settings.market_stale_after_seconds,
+            failure_cooldown_seconds=settings.market_failure_cooldown_seconds,
+        )
+        self.market_intelligence = MarketIntelligenceEngine()
         self.telegram = TelegramService(settings.telegram_bot_token, settings.telegram_chat_id)
         self.ollama = OllamaService(settings.ollama_base_url, settings.ollama_model)
         self.scheduler = SchedulerService()
@@ -33,14 +43,25 @@ class Kernel:
             return
         await self.event_bus.start()
         for service in (
-            self.database, self.binance, self.telegram, self.ollama, self.scheduler, self.watchdog
+            self.database,
+            self.binance,
+            self.telegram,
+            self.ollama,
+            self.scheduler,
+            self.watchdog,
         ):
             await self.registry.register(service)
 
         self.event_bus.subscribe("*", self._persist_event)
         self.scheduler.add_job(ScheduledJob("kernel_heartbeat", 30.0, self._heartbeat))
 
-        for service in (self.database, self.binance, self.telegram, self.ollama, self.scheduler):
+        for service in (
+            self.database,
+            self.binance,
+            self.telegram,
+            self.ollama,
+            self.scheduler,
+        ):
             try:
                 await service.start()
             except Exception as exc:
@@ -58,7 +79,6 @@ class Kernel:
         if not self._started:
             return
         await self.event_bus.publish(Event("system.stopping", source="kernel"))
-        # Stop producers first, drain persisted events, then close storage.
         for service in (self.watchdog, self.scheduler, self.ollama, self.telegram, self.binance):
             try:
                 await service.stop()
@@ -77,8 +97,9 @@ class Kernel:
     async def status(self) -> dict[str, object]:
         services = await self.registry.health_snapshot()
         failed = any(s["state"] == ServiceState.FAILED.value for s in services)
+        degraded = any(s["state"] == ServiceState.DEGRADED.value for s in services)
         return {
-            "state": "DEGRADED" if failed else "ONLINE",
+            "state": "DEGRADED" if failed or degraded else "ONLINE",
             "mode": self.settings.nexor_mode.value,
             "started": self._started,
             "event_queue": self.event_bus.pending_events,
@@ -87,11 +108,29 @@ class Kernel:
             "live_certified": False,
         }
 
+    async def market_state(self, symbol: str) -> dict[str, object]:
+        snapshot = await self.binance.market_snapshot(symbol)
+        state = self.market_intelligence.classify(snapshot)
+        await self.event_bus.publish(
+            Event(
+                "market.state",
+                {
+                    "symbol": state.symbol,
+                    "regime": state.regime.value,
+                    "direction": state.direction,
+                    "confidence": state.confidence,
+                    "stale": state.snapshot.stale,
+                },
+                "market_intelligence",
+            )
+        )
+        return state.to_dict()
+
     async def _heartbeat(self) -> None:
         await self.event_bus.publish(Event("system.heartbeat", source="kernel"))
 
     async def _persist_event(self, event: Event) -> None:
-        if event.topic.startswith("system."):
+        if event.topic.startswith(("system.", "market.")):
             await self.database.execute(
                 """INSERT OR IGNORE INTO system_events
                 (event_id, topic, source, payload_json, occurred_at) VALUES (?, ?, ?, ?, ?)""",

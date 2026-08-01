@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://127.0.0.1:11434"
     ollama_model: str = "llama3.2:3b"
     allow_live_mode: bool = False
+    market_cache_ttl_seconds: float = Field(default=15.0, ge=1.0, le=300.0)
+    market_stale_after_seconds: float = Field(default=120.0, ge=10.0, le=3600.0)
+    market_failure_cooldown_seconds: float = Field(default=60.0, ge=5.0, le=900.0)
 
     @model_validator(mode="after")
     def live_guard(self) -> "Settings":
@@ -56,6 +59,7 @@ def _yaml_values(path: Path = Path("config/settings.yaml")) -> dict[str, Any]:
     binance = raw.get("binance", {})
     telegram = raw.get("telegram", {})
     ollama = raw.get("ollama", {})
+    market = raw.get("market", {})
     return {
         "nexor_mode": system.get("mode", "PAPER"),
         "nexor_host": system.get("host", "127.0.0.1"),
@@ -70,6 +74,9 @@ def _yaml_values(path: Path = Path("config/settings.yaml")) -> dict[str, Any]:
         "telegram_chat_id": telegram.get("chat_id", ""),
         "ollama_base_url": ollama.get("base_url", "http://127.0.0.1:11434"),
         "ollama_model": ollama.get("model", "llama3.2:3b"),
+        "market_cache_ttl_seconds": market.get("cache_ttl_seconds", 15.0),
+        "market_stale_after_seconds": market.get("stale_after_seconds", 120.0),
+        "market_failure_cooldown_seconds": market.get("failure_cooldown_seconds", 60.0),
     }
 
 
@@ -89,6 +96,9 @@ def _environment_overrides() -> dict[str, Any]:
         "OLLAMA_BASE_URL": "ollama_base_url",
         "OLLAMA_MODEL": "ollama_model",
         "ALLOW_LIVE_MODE": "allow_live_mode",
+        "MARKET_CACHE_TTL_SECONDS": "market_cache_ttl_seconds",
+        "MARKET_STALE_AFTER_SECONDS": "market_stale_after_seconds",
+        "MARKET_FAILURE_COOLDOWN_SECONDS": "market_failure_cooldown_seconds",
     }
     values: dict[str, Any] = {}
     for env_name, field_name in mapping.items():

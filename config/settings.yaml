@@ -1,17 +1,25 @@
 system:
   mode: PAPER
-  host: 0.0.0.0
+  host: 127.0.0.1
   port: 8809
   log_level: INFO
   database_path: data/nexor_x.db
   allow_live_mode: false
+
 binance:
   api_key: ""
   api_secret: ""
   testnet: false
+
 telegram:
   bot_token: ""
   chat_id: ""
+
 ollama:
   base_url: http://127.0.0.1:11434
   model: llama3.2:3b
+
+market:
+  cache_ttl_seconds: 15
+  stale_after_seconds: 120
+  failure_cooldown_seconds: 60

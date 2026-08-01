@@ -34,3 +34,12 @@ Abra `http://127.0.0.1:8809`. Para publicar como site HTTPS, consulte `docs/DEPL
 ## Seguranca
 
 Nunca envie `.env`, bancos, logs ou chaves para o GitHub. O projeto permanece incapaz de enviar ordens nesta etapa.
+
+
+## Sprint 4 — Market Intelligence
+
+- Classificador explicável de regime de mercado.
+- Cache de dados, cooldown de falhas e modo degradado.
+- Endpoint `/api/market/{symbol}` com snapshot e estado.
+- Command Center com regime, direção, confiança e frescor dos dados.
+- Nenhuma decisão de trade é tomada nesta Sprint.
