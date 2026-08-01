@@ -30,6 +30,18 @@ CREATE TABLE IF NOT EXISTS settings_audit(
  actor TEXT NOT NULL,
  changed_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS quant_observations(
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ symbol TEXT NOT NULL,
+ decision TEXT NOT NULL,
+ raw_edge REAL NOT NULL CHECK(raw_edge >= -1.0 AND raw_edge <= 1.0),
+ regime TEXT NOT NULL,
+ realized_r REAL NOT NULL,
+ closed_at TEXT NOT NULL,
+ UNIQUE(symbol, decision, raw_edge, regime, closed_at)
+);
+CREATE INDEX IF NOT EXISTS idx_quant_observations_context
+ON quant_observations(decision, regime, raw_edge, closed_at);
 """
 
 class DatabaseService(BaseService):
@@ -60,7 +72,22 @@ class DatabaseService(BaseService):
         async with self._lock:
             self._execute_sync(sql, parameters)
 
+    async def fetchall(
+        self, sql: str, parameters: tuple[object, ...] = ()
+    ) -> list[tuple[object, ...]]:
+        if self._connection is None:
+            raise RuntimeError("Database is not started")
+        async with self._lock:
+            return self._fetchall_sync(sql, parameters)
+
     def _execute_sync(self, sql: str, parameters: tuple[object, ...]) -> None:
         assert self._connection is not None
         self._connection.execute(sql, parameters)
         self._connection.commit()
+
+    def _fetchall_sync(
+        self, sql: str, parameters: tuple[object, ...]
+    ) -> list[tuple[object, ...]]:
+        assert self._connection is not None
+        cursor = self._connection.execute(sql, parameters)
+        return list(cursor.fetchall())

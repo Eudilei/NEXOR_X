@@ -18,6 +18,7 @@ from nexor_x.logging import logger
 from nexor_x.market.engine import MarketIntelligenceEngine
 from nexor_x.evidence import EvidenceEngine
 from nexor_x.quant import QuantBrain
+from nexor_x.laboratory import LaboratoryService
 
 
 class Kernel:
@@ -33,6 +34,9 @@ class Kernel:
             failure_cooldown_seconds=settings.market_failure_cooldown_seconds,
         )
         self.market_intelligence = MarketIntelligenceEngine()
+        self.evidence_engine = EvidenceEngine()
+        self.quant_brain = QuantBrain()
+        self.laboratory = LaboratoryService(self.database)
         self.telegram = TelegramService(settings.telegram_bot_token, settings.telegram_chat_id)
         self.ollama = OllamaService(settings.ollama_base_url, settings.ollama_model)
         self.scheduler = SchedulerService()
@@ -128,11 +132,40 @@ class Kernel:
         )
         return state.to_dict()
 
+
+    async def quant_assessment(self, symbol: str) -> dict[str, object]:
+        snapshot = await self.binance.market_snapshot(symbol)
+        state = self.market_intelligence.classify(snapshot)
+        evidences = self.evidence_engine.evaluate(state)
+        preliminary = self.quant_brain.assess(state.symbol, evidences)
+        calibration = await self.laboratory.estimate(
+            preliminary.raw_edge, preliminary.decision.value, state.regime.value
+        )
+        assessment = self.quant_brain.assess(state.symbol, evidences, calibration)
+        await self.event_bus.publish(
+            Event(
+                "quant.assessment",
+                {
+                    "symbol": assessment.symbol,
+                    "decision": assessment.decision.value,
+                    "raw_edge": assessment.raw_edge,
+                    "calibrated": assessment.calibrated,
+                    "expected_r": assessment.expected_r,
+                    "execution_allowed": False,
+                },
+                "quant_brain",
+            )
+        )
+        return assessment.to_dict()
+
+    async def laboratory_status(self) -> dict[str, object]:
+        return await self.laboratory.status()
+
     async def _heartbeat(self) -> None:
         await self.event_bus.publish(Event("system.heartbeat", source="kernel"))
 
     async def _persist_event(self, event: Event) -> None:
-        if event.topic.startswith(("system.", "market.")):
+        if event.topic.startswith(("system.", "market.", "quant.", "laboratory.")):
             await self.database.execute(
                 """INSERT OR IGNORE INTO system_events
                 (event_id, topic, source, payload_json, occurred_at) VALUES (?, ?, ?, ?, ?)""",

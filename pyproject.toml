@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nexor-x"
-version = "0.5.0"
+version = "0.6.0"
 description = "NEXOR X quantitative trading operating system market intelligence, resilient data and command center"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -21,6 +21,7 @@ dependencies = [
 dev = ["pytest>=8.3,<9","pytest-asyncio>=0.24,<1","pytest-cov>=5,<7","ruff>=0.6,<1"]
 [project.scripts]
 nexor-x = "nexor_x.main:run"
+nexor-lab-import = "nexor_x.laboratory.importer:main"
 [tool.setuptools]
 package-dir = {"" = "src"}
 

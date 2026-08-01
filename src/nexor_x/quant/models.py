@@ -23,6 +23,10 @@ class QuantAssessment:
     evidence_coverage: float
     confidence: float
     calibrated: bool
+    win_probability: float | None
+    expected_r: float | None
+    profit_factor: float | None
+    calibration_samples: int
     execution_allowed: bool
     rationale: tuple[str, ...]
     evidences: tuple[Evidence, ...]
@@ -36,6 +40,10 @@ class QuantAssessment:
             "evidence_coverage": self.evidence_coverage,
             "confidence": self.confidence,
             "calibrated": self.calibrated,
+            "win_probability": self.win_probability,
+            "expected_r": self.expected_r,
+            "profit_factor": self.profit_factor,
+            "calibration_samples": self.calibration_samples,
             "execution_allowed": self.execution_allowed,
             "rationale": list(self.rationale),
             "evidences": [item.to_dict() for item in self.evidences],
