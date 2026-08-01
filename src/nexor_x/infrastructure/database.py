@@ -42,6 +42,28 @@ CREATE TABLE IF NOT EXISTS quant_observations(
 );
 CREATE INDEX IF NOT EXISTS idx_quant_observations_context
 ON quant_observations(decision, regime, raw_edge, closed_at);
+
+CREATE TABLE IF NOT EXISTS portfolio_accounts(
+ account_id TEXT PRIMARY KEY,
+ equity REAL NOT NULL,
+ peak_equity REAL NOT NULL,
+ realized_pnl REAL NOT NULL,
+ updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS portfolio_positions(
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ symbol TEXT NOT NULL,
+ side TEXT NOT NULL,
+ quantity REAL NOT NULL,
+ entry_price REAL NOT NULL,
+ notional REAL NOT NULL,
+ status TEXT NOT NULL,
+ opened_at TEXT NOT NULL,
+ closed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_portfolio_positions_status
+ON portfolio_positions(status, symbol);
+
 """
 
 class DatabaseService(BaseService):

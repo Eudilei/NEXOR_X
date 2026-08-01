@@ -12,3 +12,8 @@ The API accesses state through explicit service contracts.
 
 ## Startup
 Configuration → logging → event bus → database → Binance public data → Telegram → Ollama → scheduler → watchdog → API.
+
+
+## Portfolio e Pre-Trade Gate
+
+O `PortfolioService` é a fonte única do estado de risco da carteira. O `PreTradeGate` combina mercado, Quant Brain, calibração causal e portfólio. Nenhum futuro executor poderá receber uma proposta sem uma decisão explícita desse gate.

@@ -19,6 +19,8 @@ from nexor_x.market.engine import MarketIntelligenceEngine
 from nexor_x.evidence import EvidenceEngine
 from nexor_x.quant import QuantBrain
 from nexor_x.laboratory import LaboratoryService
+from nexor_x.portfolio import PortfolioService
+from nexor_x.risk import PreTradeGate
 
 
 class Kernel:
@@ -36,7 +38,19 @@ class Kernel:
         self.market_intelligence = MarketIntelligenceEngine()
         self.evidence_engine = EvidenceEngine()
         self.quant_brain = QuantBrain()
-        self.laboratory = LaboratoryService(self.database)
+        self.laboratory = LaboratoryService(
+            self.database, minimum_samples=settings.minimum_calibration_samples
+        )
+        self.portfolio = PortfolioService(self.database, settings.initial_paper_equity)
+        self.pre_trade_gate = PreTradeGate(
+            minimum_expected_r=settings.minimum_expected_r,
+            minimum_profit_factor=settings.minimum_profit_factor,
+            minimum_calibration_samples=settings.minimum_calibration_samples,
+            risk_per_trade_pct=settings.risk_per_trade_pct,
+            leverage=settings.leverage,
+            max_open_positions=settings.max_open_positions,
+            hard_stop_drawdown_pct=settings.hard_stop_drawdown_pct,
+        )
         self.telegram = TelegramService(settings.telegram_bot_token, settings.telegram_chat_id)
         self.ollama = OllamaService(settings.ollama_base_url, settings.ollama_model)
         self.scheduler = SchedulerService()
@@ -75,6 +89,7 @@ class Kernel:
                 service._details = str(exc)
                 self._log.error("service_start_failed service=%s error=%s", service.name, exc)
         await self.watchdog.start()
+        await self.portfolio.ensure_account()
         self._started = True
         await self.event_bus.publish(
             Event("system.started", {"mode": self.settings.nexor_mode.value}, "kernel")
@@ -161,11 +176,49 @@ class Kernel:
     async def laboratory_status(self) -> dict[str, object]:
         return await self.laboratory.status()
 
+    async def portfolio_status(self) -> dict[str, object]:
+        return await self.portfolio.snapshot()
+
+    async def trading_readiness(self, symbol: str) -> dict[str, object]:
+        market = await self.market_state(symbol)
+        quant = await self.quant_assessment(symbol)
+        portfolio = await self.portfolio.snapshot()
+        readiness = self.pre_trade_gate.evaluate(
+            symbol=symbol,
+            mode=self.settings.nexor_mode,
+            market=market,
+            quant=quant,
+            portfolio=portfolio,
+        )
+        await self.event_bus.publish(
+            Event(
+                "risk.readiness",
+                {
+                    "symbol": symbol,
+                    "decision": readiness.decision.value,
+                    "allowed": readiness.allowed,
+                    "side": readiness.side,
+                    "risk_budget": readiness.risk_budget,
+                },
+                "pre_trade_gate",
+            )
+        )
+        result = readiness.to_dict()
+        result["portfolio"] = portfolio
+        result["quant"] = {
+            "decision": quant["decision"],
+            "calibrated": quant["calibrated"],
+            "expected_r": quant["expected_r"],
+            "profit_factor": quant["profit_factor"],
+            "calibration_samples": quant["calibration_samples"],
+        }
+        return result
+
     async def _heartbeat(self) -> None:
         await self.event_bus.publish(Event("system.heartbeat", source="kernel"))
 
     async def _persist_event(self, event: Event) -> None:
-        if event.topic.startswith(("system.", "market.", "quant.", "laboratory.")):
+        if event.topic.startswith(("system.", "market.", "quant.", "laboratory.", "risk.")):
             await self.database.execute(
                 """INSERT OR IGNORE INTO system_events
                 (event_id, topic, source, payload_json, occurred_at) VALUES (?, ?, ?, ?, ?)""",

@@ -1,4 +1,4 @@
-# NEXOR X 0.6.0
+# NEXOR X 0.7.0
 
 Plataforma quantitativa em desenvolvimento, com execução real bloqueada.
 
@@ -29,3 +29,13 @@ Linux/Codespaces: `./START_NEXOR_X.sh`
 - `/api/laboratory/status`
 
 O sistema ainda não possui certificado de aptidão para LIVE.
+
+
+## Sprint 7 — Portfolio e Pre-Trade Gate
+
+- estado central de equity, pico, drawdown e exposição;
+- critérios causais obrigatórios antes de qualquer futura ordem;
+- endpoint `/api/portfolio/status`;
+- endpoint `/api/trading/readiness/{symbol}`;
+- LIVE continua bloqueado;
+- esta Sprint não cria ordens.

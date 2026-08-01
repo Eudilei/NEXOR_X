@@ -23,3 +23,14 @@ market:
   cache_ttl_seconds: 15
   stale_after_seconds: 120
   failure_cooldown_seconds: 60
+
+
+risk:
+  initial_paper_equity: 100.0
+  risk_per_trade_pct: 10.0
+  leverage: 15.0
+  max_open_positions: 10
+  hard_stop_drawdown_pct: 25.0
+  minimum_expected_r: 0.05
+  minimum_profit_factor: 1.10
+  minimum_calibration_samples: 30
