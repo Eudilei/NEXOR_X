@@ -34,3 +34,6 @@ risk:
   minimum_expected_r: 0.05
   minimum_profit_factor: 1.10
   minimum_calibration_samples: 30
+  paper_fee_rate: 0.0005
+  paper_slippage_rate: 0.0003
+  paper_stop_loss_pct: 0.01

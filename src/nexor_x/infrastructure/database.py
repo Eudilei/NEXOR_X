@@ -59,7 +59,13 @@ CREATE TABLE IF NOT EXISTS portfolio_positions(
  notional REAL NOT NULL,
  status TEXT NOT NULL,
  opened_at TEXT NOT NULL,
- closed_at TEXT
+ closed_at TEXT,
+ stop_price REAL,
+ entry_fee REAL NOT NULL DEFAULT 0.0,
+ exit_price REAL,
+ exit_fee REAL NOT NULL DEFAULT 0.0,
+ realized_pnl REAL NOT NULL DEFAULT 0.0,
+ close_reason TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_portfolio_positions_status
 ON portfolio_positions(status, symbol);
@@ -93,6 +99,14 @@ class DatabaseService(BaseService):
             raise RuntimeError("Database is not started")
         async with self._lock:
             self._execute_sync(sql, parameters)
+
+    async def execute_returning_id(self, sql: str, parameters: tuple[object, ...] = ()) -> int:
+        if self._connection is None:
+            raise RuntimeError("Database is not started")
+        async with self._lock:
+            cursor = self._connection.execute(sql, parameters)
+            self._connection.commit()
+            return int(cursor.lastrowid)
 
     async def fetchall(
         self, sql: str, parameters: tuple[object, ...] = ()

@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     minimum_expected_r: float = Field(default=0.05, ge=-10, le=10)
     minimum_profit_factor: float = Field(default=1.10, ge=0, le=100)
     minimum_calibration_samples: int = Field(default=30, ge=5, le=100000)
+    paper_fee_rate: float = Field(default=0.0005, ge=0, lt=1)
+    paper_slippage_rate: float = Field(default=0.0003, ge=0, lt=1)
+    paper_stop_loss_pct: float = Field(default=0.01, gt=0, lt=1)
 
     @model_validator(mode="after")
     def live_guard(self) -> "Settings":
@@ -94,6 +97,9 @@ def _yaml_values(path: Path = Path("config/settings.yaml")) -> dict[str, Any]:
         "minimum_expected_r": risk.get("minimum_expected_r", 0.05),
         "minimum_profit_factor": risk.get("minimum_profit_factor", 1.10),
         "minimum_calibration_samples": risk.get("minimum_calibration_samples", 30),
+        "paper_fee_rate": risk.get("paper_fee_rate", 0.0005),
+        "paper_slippage_rate": risk.get("paper_slippage_rate", 0.0003),
+        "paper_stop_loss_pct": risk.get("paper_stop_loss_pct", 0.01),
     }
 
 
@@ -124,6 +130,9 @@ def _environment_overrides() -> dict[str, Any]:
         "MINIMUM_EXPECTED_R": "minimum_expected_r",
         "MINIMUM_PROFIT_FACTOR": "minimum_profit_factor",
         "MINIMUM_CALIBRATION_SAMPLES": "minimum_calibration_samples",
+        "PAPER_FEE_RATE": "paper_fee_rate",
+        "PAPER_SLIPPAGE_RATE": "paper_slippage_rate",
+        "PAPER_STOP_LOSS_PCT": "paper_stop_loss_pct",
     }
     values: dict[str, Any] = {}
     for env_name, field_name in mapping.items():

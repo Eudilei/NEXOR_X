@@ -42,6 +42,10 @@ class PortfolioService:
         equity_f = float(equity)
         peak_f = max(float(peak), equity_f)
         drawdown = 0.0 if peak_f <= 0 else max(0.0, (peak_f - equity_f) / peak_f)
+        positions = await self.database.fetchall(
+            """SELECT id, symbol, side, quantity, entry_price, notional, stop_price, opened_at
+            FROM portfolio_positions WHERE status='OPEN' ORDER BY opened_at"""
+        )
         return {
             "account_id": "PAPER",
             "equity": round(equity_f, 8),
@@ -50,5 +54,11 @@ class PortfolioService:
             "drawdown_pct": round(drawdown * 100.0, 6),
             "open_positions": int(open_positions),
             "gross_notional": round(float(gross_notional), 8),
+            "positions": [
+                {"id": int(r[0]), "symbol": str(r[1]), "side": str(r[2]),
+                 "quantity": float(r[3]), "entry_price": float(r[4]),
+                 "notional": float(r[5]), "stop_price": None if r[6] is None else float(r[6]), "opened_at": str(r[7])}
+                for r in positions
+            ],
             "updated_at": str(updated_at),
         }

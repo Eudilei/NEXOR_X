@@ -21,6 +21,7 @@ from nexor_x.quant import QuantBrain
 from nexor_x.laboratory import LaboratoryService
 from nexor_x.portfolio import PortfolioService
 from nexor_x.risk import PreTradeGate
+from nexor_x.execution import PaperExecutionService
 
 
 class Kernel:
@@ -50,6 +51,12 @@ class Kernel:
             leverage=settings.leverage,
             max_open_positions=settings.max_open_positions,
             hard_stop_drawdown_pct=settings.hard_stop_drawdown_pct,
+        )
+        self.paper_execution = PaperExecutionService(
+            self.database, fee_rate=settings.paper_fee_rate,
+            slippage_rate=settings.paper_slippage_rate,
+            stop_loss_pct=settings.paper_stop_loss_pct,
+            max_notional_multiple=settings.leverage,
         )
         self.telegram = TelegramService(settings.telegram_bot_token, settings.telegram_chat_id)
         self.ollama = OllamaService(settings.ollama_base_url, settings.ollama_model)
@@ -214,11 +221,27 @@ class Kernel:
         }
         return result
 
+
+    async def paper_open(self, symbol: str) -> dict[str, object]:
+        market = await self.market_state(symbol)
+        readiness = await self.trading_readiness(symbol)
+        portfolio = await self.portfolio.snapshot()
+        fill = await self.paper_execution.open_from_readiness(
+            mode=self.settings.nexor_mode, readiness=readiness, market=market, portfolio=portfolio
+        )
+        await self.event_bus.publish(Event("execution.paper_open", fill.to_dict(), "paper_execution"))
+        return fill.to_dict()
+
+    async def paper_close(self, position_id: int, market_price: float, reason: str) -> dict[str, object]:
+        result = await self.paper_execution.close_position(position_id, market_price, reason)
+        await self.event_bus.publish(Event("execution.paper_close", result, "paper_execution"))
+        return result
+
     async def _heartbeat(self) -> None:
         await self.event_bus.publish(Event("system.heartbeat", source="kernel"))
 
     async def _persist_event(self, event: Event) -> None:
-        if event.topic.startswith(("system.", "market.", "quant.", "laboratory.", "risk.")):
+        if event.topic.startswith(("system.", "market.", "quant.", "laboratory.", "risk.", "execution.")):
             await self.database.execute(
                 """INSERT OR IGNORE INTO system_events
                 (event_id, topic, source, payload_json, occurred_at) VALUES (?, ?, ?, ?, ?)""",

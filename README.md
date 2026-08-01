@@ -39,3 +39,9 @@ O sistema ainda não possui certificado de aptidão para LIVE.
 - endpoint `/api/trading/readiness/{symbol}`;
 - LIVE continua bloqueado;
 - esta Sprint não cria ordens.
+
+## Sprint 8 — PAPER Execution
+
+A plataforma agora persiste posições PAPER apenas após aprovação do Pre-Trade Gate. Taxas,
+slippage, stop inicial e PnL líquido são auditáveis. Nenhum endpoint envia ordens à Binance;
+LIVE permanece bloqueado.
