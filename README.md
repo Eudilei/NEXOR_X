@@ -1,25 +1,35 @@
 # NEXOR X
 
-Quantitative Trading Operating System.
+Quantitative Trading Operating System voltado a descoberta, validacao e exploracao controlada de vantagem estatistica.
 
-## Sprint 1
-Foundation with one-command startup, event bus, registry, watchdog, scheduler, SQLite, API, Command Center, Binance public market data, Telegram and Ollama.
+## Estado atual
 
-**PAPER is the default. LIVE is blocked by a safety gate. No order execution exists in this sprint.**
+**Sprint 2 — Foundation & Command Center**
 
-## Windows
-Double-click `START_NEXOR_X.bat`, then open `http://127.0.0.1:8809`.
+- PAPER por padrao, com dados reais da Binance Futures.
+- LIVE bloqueado ate certificacao futura do laboratorio.
+- Kernel, Event Bus, Registry, Scheduler, Watchdog e SQLite.
+- Command Center na porta 8809 com atualizacao por WebSocket.
+- Integracao inicial com Binance, Telegram e Ollama.
+- Configuracao central em `config/settings.yaml` e segredos opcionais em `.env`.
 
-## Linux / Codespaces
+## Inicio rapido
+
+Windows:
+
+```bat
+START_NEXOR_X.bat
+```
+
+Linux / Codespaces:
+
 ```bash
 chmod +x START_NEXOR_X.sh
 ./START_NEXOR_X.sh
 ```
 
-## Tests
-```bash
-python -m pip install -e ".[dev]"
-pytest
-```
+Abra `http://127.0.0.1:8809`.
 
-Copy `.env.example` to `.env` and fill credentials only on your machine. Never commit `.env`.
+## Seguranca
+
+Nunca envie `.env`, bancos, logs ou chaves para o GitHub. O projeto permanece incapaz de enviar ordens nesta etapa.

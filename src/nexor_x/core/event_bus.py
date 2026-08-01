@@ -39,7 +39,7 @@ class EventBus:
             self._worker = None
 
     async def _run(self) -> None:
-        while not self._stopping.is_set():
+        while not self._stopping.is_set() or not self._queue.empty():
             event = await self._queue.get()
             try:
                 handlers = self._subscriptions.get(event.topic, []) + self._subscriptions.get("*", [])

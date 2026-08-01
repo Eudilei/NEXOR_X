@@ -58,7 +58,7 @@ class DatabaseService(BaseService):
         if self._connection is None:
             raise RuntimeError("Database is not started")
         async with self._lock:
-            await asyncio.to_thread(self._execute_sync, sql, parameters)
+            self._execute_sync(sql, parameters)
 
     def _execute_sync(self, sql: str, parameters: tuple[object, ...]) -> None:
         assert self._connection is not None

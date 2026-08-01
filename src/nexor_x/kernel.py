@@ -1,4 +1,5 @@
 from __future__ import annotations
+import asyncio
 import json
 from datetime import UTC, datetime
 from nexor_x.ai.ollama import OllamaService
@@ -57,13 +58,21 @@ class Kernel:
         if not self._started:
             return
         await self.event_bus.publish(Event("system.stopping", source="kernel"))
-        for service in reversed(tuple(self.registry.all())):
+        # Stop producers first, drain persisted events, then close storage.
+        for service in (self.watchdog, self.scheduler, self.ollama, self.telegram, self.binance):
             try:
                 await service.stop()
             except Exception as exc:
                 self._log.error("service_stop_failed service=%s error=%s", service.name, exc)
         await self.event_bus.stop()
+        try:
+            await self.database.stop()
+        except Exception as exc:
+            self._log.error("service_stop_failed service=%s error=%s", self.database.name, exc)
         self._started = False
+
+    async def sleep(self, seconds: float) -> None:
+        await asyncio.sleep(seconds)
 
     async def status(self) -> dict[str, object]:
         services = await self.registry.health_snapshot()
