@@ -16,6 +16,8 @@ from nexor_x.infrastructure.database import DatabaseService
 from nexor_x.infrastructure.telegram import TelegramService
 from nexor_x.logging import logger
 from nexor_x.market.engine import MarketIntelligenceEngine
+from nexor_x.evidence import EvidenceEngine
+from nexor_x.quant import QuantBrain
 
 
 class Kernel:

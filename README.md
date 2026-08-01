@@ -43,3 +43,7 @@ Nunca envie `.env`, bancos, logs ou chaves para o GitHub. O projeto permanece in
 - Endpoint `/api/market/{symbol}` com snapshot e estado.
 - Command Center com regime, direção, confiança e frescor dos dados.
 - Nenhuma decisão de trade é tomada nesta Sprint.
+
+## Sprint 5 — Evidence Engine e Quant Brain
+
+A plataforma agora transforma o estado de mercado em evidências independentes e produz uma avaliação explicável de viés (`LONG_BIAS`, `SHORT_BIAS`, `NO_EDGE` ou `INSUFFICIENT_DATA`). Essa avaliação ainda não é calibrada e jamais autoriza execução. Endpoint: `/api/quant/{symbol}`.
