@@ -37,3 +37,10 @@ risk:
   paper_fee_rate: 0.0005
   paper_slippage_rate: 0.0003
   paper_stop_loss_pct: 0.01
+
+scanner:
+  enabled: true
+  symbols: BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT,XRPUSDT
+  interval_seconds: 60
+  concurrency: 4
+  top_candidates: 10

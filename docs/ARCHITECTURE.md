@@ -17,3 +17,7 @@ Configuration → logging → event bus → database → Binance public data →
 ## Portfolio e Pre-Trade Gate
 
 O `PortfolioService` é a fonte única do estado de risco da carteira. O `PreTradeGate` combina mercado, Quant Brain, calibração causal e portfólio. Nenhum futuro executor poderá receber uma proposta sem uma decisão explícita desse gate.
+
+## Scanner Service
+
+O `MarketScannerService` recebe uma função assíncrona de avaliação, evitando dependência direta da Binance ou do Quant Brain. Cada símbolo é isolado por semáforo e falhas parciais não cancelam a varredura inteira. Resultados são persistidos em `scanner_runs` e `scanner_candidates`. O scanner somente classifica e ordena observações; execução continua separada pelo Pre-Trade Gate e pelo Paper Execution Service.

@@ -70,6 +70,36 @@ CREATE TABLE IF NOT EXISTS portfolio_positions(
 CREATE INDEX IF NOT EXISTS idx_portfolio_positions_status
 ON portfolio_positions(status, symbol);
 
+CREATE TABLE IF NOT EXISTS scanner_runs(
+ run_id TEXT PRIMARY KEY,
+ started_at TEXT NOT NULL,
+ finished_at TEXT NOT NULL,
+ symbols_requested INTEGER NOT NULL,
+ symbols_succeeded INTEGER NOT NULL,
+ symbols_failed INTEGER NOT NULL,
+ errors_json TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS scanner_candidates(
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ run_id TEXT NOT NULL REFERENCES scanner_runs(run_id) ON DELETE CASCADE,
+ rank INTEGER NOT NULL,
+ symbol TEXT NOT NULL,
+ decision TEXT NOT NULL,
+ raw_edge REAL NOT NULL,
+ confidence REAL NOT NULL,
+ calibrated INTEGER NOT NULL,
+ expected_r REAL,
+ profit_factor REAL,
+ calibration_samples INTEGER NOT NULL,
+ stale INTEGER NOT NULL,
+ regime TEXT NOT NULL,
+ rank_score REAL NOT NULL,
+ evaluated_at TEXT NOT NULL,
+ UNIQUE(run_id, symbol)
+);
+CREATE INDEX IF NOT EXISTS idx_scanner_candidates_run_rank
+ON scanner_candidates(run_id, rank);
+
 """
 
 class DatabaseService(BaseService):

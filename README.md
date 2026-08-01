@@ -45,3 +45,14 @@ O sistema ainda não possui certificado de aptidão para LIVE.
 A plataforma agora persiste posições PAPER apenas após aprovação do Pre-Trade Gate. Taxas,
 slippage, stop inicial e PnL líquido são auditáveis. Nenhum endpoint envia ordens à Binance;
 LIVE permanece bloqueado.
+
+## Sprint 9 — Scanner multiativo observacional
+
+O NEXOR X agora executa varreduras configuráveis sobre múltiplos contratos USDT-M. A varredura reutiliza Market Intelligence, Evidence Engine, Quant Brain e calibração causal, isola falhas por símbolo, persiste cada execução e publica uma lista ordenada de candidatos no Command Center.
+
+Nesta fase o scanner é estritamente observacional: ele não abre posições automaticamente e não transforma `raw_edge` em probabilidade de lucro. Os endpoints são:
+
+- `GET /api/scanner/status`
+- `POST /api/scanner/run`
+
+A configuração fica em `config/settings.yaml`, na seção `scanner`.

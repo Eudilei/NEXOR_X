@@ -44,6 +44,15 @@ class Settings(BaseSettings):
     paper_fee_rate: float = Field(default=0.0005, ge=0, lt=1)
     paper_slippage_rate: float = Field(default=0.0003, ge=0, lt=1)
     paper_stop_loss_pct: float = Field(default=0.01, gt=0, lt=1)
+    scanner_enabled: bool = True
+    scanner_symbols: str = "BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT,XRPUSDT"
+    scanner_interval_seconds: float = Field(default=60.0, ge=15.0, le=86400.0)
+    scanner_concurrency: int = Field(default=4, ge=1, le=32)
+    scanner_top_candidates: int = Field(default=10, ge=1, le=100)
+
+    @property
+    def scanner_symbol_list(self) -> tuple[str, ...]:
+        return tuple(item.strip().upper() for item in self.scanner_symbols.split(",") if item.strip())
 
     @model_validator(mode="after")
     def live_guard(self) -> "Settings":
@@ -72,6 +81,7 @@ def _yaml_values(path: Path = Path("config/settings.yaml")) -> dict[str, Any]:
     ollama = raw.get("ollama", {})
     market = raw.get("market", {})
     risk = raw.get("risk", {})
+    scanner = raw.get("scanner", {})
     return {
         "nexor_mode": system.get("mode", "PAPER"),
         "nexor_host": system.get("host", "127.0.0.1"),
@@ -100,6 +110,11 @@ def _yaml_values(path: Path = Path("config/settings.yaml")) -> dict[str, Any]:
         "paper_fee_rate": risk.get("paper_fee_rate", 0.0005),
         "paper_slippage_rate": risk.get("paper_slippage_rate", 0.0003),
         "paper_stop_loss_pct": risk.get("paper_stop_loss_pct", 0.01),
+        "scanner_enabled": scanner.get("enabled", True),
+        "scanner_symbols": scanner.get("symbols", "BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT,XRPUSDT"),
+        "scanner_interval_seconds": scanner.get("interval_seconds", 60.0),
+        "scanner_concurrency": scanner.get("concurrency", 4),
+        "scanner_top_candidates": scanner.get("top_candidates", 10),
     }
 
 
@@ -133,6 +148,11 @@ def _environment_overrides() -> dict[str, Any]:
         "PAPER_FEE_RATE": "paper_fee_rate",
         "PAPER_SLIPPAGE_RATE": "paper_slippage_rate",
         "PAPER_STOP_LOSS_PCT": "paper_stop_loss_pct",
+        "SCANNER_ENABLED": "scanner_enabled",
+        "SCANNER_SYMBOLS": "scanner_symbols",
+        "SCANNER_INTERVAL_SECONDS": "scanner_interval_seconds",
+        "SCANNER_CONCURRENCY": "scanner_concurrency",
+        "SCANNER_TOP_CANDIDATES": "scanner_top_candidates",
     }
     values: dict[str, Any] = {}
     for env_name, field_name in mapping.items():

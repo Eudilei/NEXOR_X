@@ -22,6 +22,7 @@ from nexor_x.laboratory import LaboratoryService
 from nexor_x.portfolio import PortfolioService
 from nexor_x.risk import PreTradeGate
 from nexor_x.execution import PaperExecutionService
+from nexor_x.scanner import MarketScannerService
 
 
 class Kernel:
@@ -58,6 +59,13 @@ class Kernel:
             stop_loss_pct=settings.paper_stop_loss_pct,
             max_notional_multiple=settings.leverage,
         )
+        self.scanner = MarketScannerService(
+            self.database,
+            self.quant_assessment,
+            symbols=settings.scanner_symbol_list,
+            concurrency=settings.scanner_concurrency,
+            top_candidates=settings.scanner_top_candidates,
+        )
         self.telegram = TelegramService(settings.telegram_bot_token, settings.telegram_chat_id)
         self.ollama = OllamaService(settings.ollama_base_url, settings.ollama_model)
         self.scheduler = SchedulerService()
@@ -81,6 +89,14 @@ class Kernel:
 
         self.event_bus.subscribe("*", self._persist_event)
         self.scheduler.add_job(ScheduledJob("kernel_heartbeat", 30.0, self._heartbeat))
+        if self.settings.scanner_enabled:
+            self.scheduler.add_job(
+                ScheduledJob(
+                    "market_scanner",
+                    self.settings.scanner_interval_seconds,
+                    self._scheduled_scan,
+                )
+            )
 
         for service in (
             self.database,
@@ -178,7 +194,30 @@ class Kernel:
                 "quant_brain",
             )
         )
-        return assessment.to_dict()
+        result = assessment.to_dict()
+        result["market"] = state.to_dict()
+        return result
+
+    async def scanner_run(self) -> dict[str, object]:
+        run = await self.scanner.run_once()
+        await self.event_bus.publish(
+            Event(
+                "scanner.completed",
+                {
+                    "run_id": run.run_id,
+                    "symbols_requested": run.symbols_requested,
+                    "symbols_succeeded": run.symbols_succeeded,
+                    "symbols_failed": run.symbols_failed,
+                    "candidate_count": len(run.candidates),
+                    "execution_triggered": False,
+                },
+                "market_scanner",
+            )
+        )
+        return run.to_dict()
+
+    async def scanner_status(self) -> dict[str, object]:
+        return await self.scanner.status()
 
     async def laboratory_status(self) -> dict[str, object]:
         return await self.laboratory.status()
@@ -239,6 +278,12 @@ class Kernel:
 
     async def _heartbeat(self) -> None:
         await self.event_bus.publish(Event("system.heartbeat", source="kernel"))
+
+    async def _scheduled_scan(self) -> None:
+        try:
+            await self.scanner_run()
+        except Exception as exc:
+            self._log.warning("scheduled_scan_failed error=%s", exc)
 
     async def _persist_event(self, event: Event) -> None:
         if event.topic.startswith(("system.", "market.", "quant.", "laboratory.", "risk.", "execution.")):
