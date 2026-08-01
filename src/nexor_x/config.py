@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+import os
 from pathlib import Path
 from typing import Any
 
@@ -72,6 +73,35 @@ def _yaml_values(path: Path = Path("config/settings.yaml")) -> dict[str, Any]:
     }
 
 
+def _environment_overrides() -> dict[str, Any]:
+    """Return explicit runtime overrides, including the hosting provider PORT."""
+    mapping = {
+        "NEXOR_MODE": "nexor_mode",
+        "NEXOR_HOST": "nexor_host",
+        "NEXOR_PORT": "nexor_port",
+        "NEXOR_LOG_LEVEL": "nexor_log_level",
+        "NEXOR_DATABASE_PATH": "nexor_database_path",
+        "BINANCE_API_KEY": "binance_api_key",
+        "BINANCE_API_SECRET": "binance_api_secret",
+        "BINANCE_TESTNET": "binance_testnet",
+        "TELEGRAM_BOT_TOKEN": "telegram_bot_token",
+        "TELEGRAM_CHAT_ID": "telegram_chat_id",
+        "OLLAMA_BASE_URL": "ollama_base_url",
+        "OLLAMA_MODEL": "ollama_model",
+        "ALLOW_LIVE_MODE": "allow_live_mode",
+    }
+    values: dict[str, Any] = {}
+    for env_name, field_name in mapping.items():
+        value = os.getenv(env_name)
+        if value is not None and value != "":
+            values[field_name] = value
+    if os.getenv("PORT"):
+        values["nexor_port"] = os.environ["PORT"]
+    return values
+
+
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
-    return Settings(**_yaml_values())
+    values = _yaml_values()
+    values.update(_environment_overrides())
+    return Settings(**values)

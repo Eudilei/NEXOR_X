@@ -17,3 +17,7 @@ backups/*
 data/*.db
 data/*.db-*
 *.zip
+
+*.egg-info/
+*.db-shm
+*.db-wal

@@ -1,0 +1,35 @@
+services:
+  - type: web
+    name: nexor-x-command-center
+    runtime: python
+    plan: free
+    branch: main
+    buildCommand: python -m pip install --upgrade pip && python -m pip install -e .
+    startCommand: nexor-x
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: NEXOR_MODE
+        value: PAPER
+      - key: NEXOR_HOST
+        value: 0.0.0.0
+      - key: NEXOR_LOG_LEVEL
+        value: INFO
+      - key: NEXOR_DATABASE_PATH
+        value: /tmp/nexor_x.db
+      - key: ALLOW_LIVE_MODE
+        value: "false"
+      - key: BINANCE_API_KEY
+        sync: false
+      - key: BINANCE_API_SECRET
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
+      - key: OLLAMA_BASE_URL
+        sync: false
+      - key: OLLAMA_MODEL
+        value: llama3.2:3b

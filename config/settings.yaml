@@ -1,6 +1,6 @@
 system:
   mode: PAPER
-  host: 127.0.0.1
+  host: 0.0.0.0
   port: 8809
   log_level: INFO
   database_path: data/nexor_x.db
