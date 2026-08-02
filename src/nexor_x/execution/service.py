@@ -91,9 +91,11 @@ class PaperExecutionService:
             position_id = await self.database.execute_returning_id(
                 """INSERT INTO portfolio_positions
                 (symbol, side, quantity, entry_price, notional, status, opened_at,
-                 stop_price, entry_fee, realized_pnl, exit_price, exit_fee, close_reason)
-                VALUES (?, ?, ?, ?, ?, 'OPEN', ?, ?, ?, 0.0, NULL, 0.0, NULL)""",
-                (symbol, side, quantity, entry_price, notional, now.isoformat(), stop_price, fee),
+                 stop_price, entry_fee, realized_pnl, exit_price, exit_fee, close_reason,
+                 initial_stop_price, highest_price, lowest_price, partial_taken, partial_realized_pnl)
+                VALUES (?, ?, ?, ?, ?, 'OPEN', ?, ?, ?, 0.0, NULL, 0.0, NULL, ?, ?, ?, 0, 0.0)""",
+                (symbol, side, quantity, entry_price, notional, now.isoformat(), stop_price, fee,
+                 stop_price, entry_price, entry_price),
             )
         return PaperFill(
             position_id=position_id,
@@ -109,6 +111,43 @@ class PaperExecutionService:
             reason="PAPER fill persistido; nenhuma ordem LIVE foi enviada",
             created_at=now,
         )
+
+    async def partial_close(self, position_id: int, market_price: float, quantity_to_close: float, reason: str) -> dict[str, Any]:
+        if market_price <= 0 or quantity_to_close <= 0:
+            raise ValueError("market_price and quantity_to_close must be positive")
+        async with self._lock:
+            rows = await self.database.fetchall(
+                """SELECT symbol, side, quantity, entry_price, entry_fee, partial_realized_pnl
+                FROM portfolio_positions WHERE id=? AND status='OPEN'""", (position_id,)
+            )
+            if not rows:
+                raise ValueError("open position not found")
+            symbol, side, quantity, entry_price, entry_fee, prior_partial = rows[0]
+            quantity = float(quantity)
+            if quantity_to_close >= quantity:
+                raise ValueError("partial quantity must be smaller than remaining quantity")
+            exit_price = market_price * (1.0 - self.slippage_rate if side == "LONG" else 1.0 + self.slippage_rate)
+            gross = ((exit_price - float(entry_price)) if side == "LONG" else (float(entry_price) - exit_price)) * quantity_to_close
+            exit_fee = abs(exit_price * quantity_to_close) * self.fee_rate
+            allocated_entry_fee = float(entry_fee) * (quantity_to_close / quantity)
+            net = gross - allocated_entry_fee - exit_fee
+            remaining = quantity - quantity_to_close
+            now = datetime.now(UTC).isoformat()
+            await self.database.execute(
+                """UPDATE portfolio_positions SET quantity=?, notional=quantity*entry_price,
+                entry_fee=entry_fee-?, partial_realized_pnl=?, realized_pnl=realized_pnl+?
+                WHERE id=? AND status='OPEN'""",
+                (remaining, allocated_entry_fee, float(prior_partial)+net, net, position_id),
+            )
+            await self.database.execute(
+                """UPDATE portfolio_accounts SET equity=equity+?, realized_pnl=realized_pnl+?,
+                peak_equity=MAX(peak_equity, equity+?), updated_at=? WHERE account_id='PAPER'""",
+                (net, net, net, now),
+            )
+        return {"position_id": position_id, "symbol": symbol, "side": side,
+                "quantity_closed": round(quantity_to_close, 12), "quantity_remaining": round(remaining, 12),
+                "exit_price": round(exit_price, 12), "net_pnl": round(net, 8),
+                "reason": reason[:120], "live_order_sent": False}
 
     async def close_position(self, position_id: int, market_price: float, reason: str) -> dict[str, Any]:
         if market_price <= 0:

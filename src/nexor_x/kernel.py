@@ -23,6 +23,8 @@ from nexor_x.portfolio import PortfolioService
 from nexor_x.risk import PreTradeGate
 from nexor_x.execution import PaperExecutionService
 from nexor_x.scanner import MarketScannerService
+from nexor_x.position import PositionManagementService
+from nexor_x.position.service import PositionPolicy
 
 
 class Kernel:
@@ -58,6 +60,16 @@ class Kernel:
             slippage_rate=settings.paper_slippage_rate,
             stop_loss_pct=settings.paper_stop_loss_pct,
             max_notional_multiple=settings.leverage,
+        )
+        self.position_management = PositionManagementService(
+            self.database, self.paper_execution, PositionPolicy(
+                break_even_trigger_r=settings.position_break_even_trigger_r,
+                break_even_buffer_r=settings.position_break_even_buffer_r,
+                partial_trigger_r=settings.position_partial_trigger_r,
+                partial_fraction=settings.position_partial_fraction,
+                trailing_start_r=settings.position_trailing_start_r,
+                trailing_distance_r=settings.position_trailing_distance_r,
+            )
         )
         self.scanner = MarketScannerService(
             self.database,
@@ -276,6 +288,24 @@ class Kernel:
         await self.event_bus.publish(Event("execution.paper_close", result, "paper_execution"))
         return result
 
+
+    async def manage_position(self, position_id: int, market_price: float) -> dict[str, object]:
+        result = await self.position_management.evaluate(position_id, market_price)
+        await self.event_bus.publish(Event("position.managed", result, "position_management"))
+        return result
+
+    async def manage_all_positions(self) -> dict[str, object]:
+        portfolio = await self.portfolio.snapshot()
+        prices: dict[str, float] = {}
+        for position in portfolio["positions"]:
+            market = await self.market_state(str(position["symbol"]))
+            snapshot = market.get("snapshot", {})
+            if not snapshot.get("stale", True) and float(snapshot.get("price") or 0) > 0:
+                prices[str(position["symbol"])] = float(snapshot["price"])
+        result = await self.position_management.evaluate_all(prices)
+        await self.event_bus.publish(Event("position.cycle", result, "position_management"))
+        return result
+
     async def _heartbeat(self) -> None:
         await self.event_bus.publish(Event("system.heartbeat", source="kernel"))
 
@@ -286,7 +316,7 @@ class Kernel:
             self._log.warning("scheduled_scan_failed error=%s", exc)
 
     async def _persist_event(self, event: Event) -> None:
-        if event.topic.startswith(("system.", "market.", "quant.", "laboratory.", "risk.", "execution.")):
+        if event.topic.startswith(("system.", "market.", "quant.", "laboratory.", "risk.", "execution.", "position.")):
             await self.database.execute(
                 """INSERT OR IGNORE INTO system_events
                 (event_id, topic, source, payload_json, occurred_at) VALUES (?, ?, ?, ?, ?)""",

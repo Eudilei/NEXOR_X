@@ -65,7 +65,12 @@ CREATE TABLE IF NOT EXISTS portfolio_positions(
  exit_price REAL,
  exit_fee REAL NOT NULL DEFAULT 0.0,
  realized_pnl REAL NOT NULL DEFAULT 0.0,
- close_reason TEXT
+ close_reason TEXT,
+ initial_stop_price REAL,
+ highest_price REAL,
+ lowest_price REAL,
+ partial_taken INTEGER NOT NULL DEFAULT 0,
+ partial_realized_pnl REAL NOT NULL DEFAULT 0.0
 );
 CREATE INDEX IF NOT EXISTS idx_portfolio_positions_status
 ON portfolio_positions(status, symbol);
@@ -114,9 +119,25 @@ class DatabaseService(BaseService):
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._connection = sqlite3.connect(self._path, check_same_thread=False)
         self._connection.executescript(_SCHEMA)
+        self._migrate()
         self._connection.commit()
         self._state = ServiceState.HEALTHY
         self._details = str(self._path)
+
+
+    def _migrate(self) -> None:
+        assert self._connection is not None
+        existing = {row[1] for row in self._connection.execute("PRAGMA table_info(portfolio_positions)")}
+        migrations = {
+            "initial_stop_price": "REAL",
+            "highest_price": "REAL",
+            "lowest_price": "REAL",
+            "partial_taken": "INTEGER NOT NULL DEFAULT 0",
+            "partial_realized_pnl": "REAL NOT NULL DEFAULT 0.0",
+        }
+        for name, ddl in migrations.items():
+            if name not in existing:
+                self._connection.execute(f"ALTER TABLE portfolio_positions ADD COLUMN {name} {ddl}")
 
     async def stop(self) -> None:
         if self._connection:

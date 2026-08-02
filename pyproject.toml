@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nexor-x"
-version = "0.9.0"
+version = "0.10.0"
 description = "NEXOR X quantitative trading operating system market intelligence, resilient data and command center"
 readme = "README.md"
 requires-python = ">=3.11"
