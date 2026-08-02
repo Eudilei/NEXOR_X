@@ -63,6 +63,16 @@ def create_app(kernel: Any) -> FastAPI:
         except Exception as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
 
+
+    @app.get("/api/probability/{symbol}")
+    async def probability(symbol: str) -> dict[str, Any]:
+        try:
+            return await kernel.probability_assessment(symbol)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except Exception as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+
     @app.get("/api/market-diagnostics")
     async def market_diagnostics() -> dict[str, Any]:
         return kernel.binance.diagnostics()

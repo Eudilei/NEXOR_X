@@ -55,3 +55,9 @@ position_management:
 
 edge_discovery:
   maximum_fdr: 0.10
+
+probability_calibration:
+  minimum_samples: 60
+  holdout_fraction: 0.25
+  kelly_fraction: 0.25
+

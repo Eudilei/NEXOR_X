@@ -47,6 +47,9 @@ class Kernel:
             minimum_expected_r=settings.minimum_expected_r,
             minimum_profit_factor=settings.minimum_profit_factor,
             maximum_fdr=settings.edge_discovery_maximum_fdr,
+            probability_minimum_samples=settings.probability_minimum_samples,
+            probability_holdout_fraction=settings.probability_holdout_fraction,
+            probability_kelly_fraction=settings.probability_kelly_fraction,
         )
         self.portfolio = PortfolioService(self.database, settings.initial_paper_equity)
         self.pre_trade_gate = PreTradeGate(
@@ -211,6 +214,30 @@ class Kernel:
         )
         result = assessment.to_dict()
         result["market"] = state.to_dict()
+        return result
+
+
+    async def probability_assessment(self, symbol: str) -> dict[str, object]:
+        snapshot = await self.binance.market_snapshot(symbol)
+        state = self.market_intelligence.classify(snapshot)
+        evidences = self.evidence_engine.evaluate(state)
+        preliminary = self.quant_brain.assess(state.symbol, evidences)
+        report = await self.laboratory.probability_estimate(
+            preliminary.raw_edge, preliminary.decision.value, state.regime.value
+        )
+        result = report.to_dict()
+        result.update({
+            "symbol": state.symbol, "decision": preliminary.decision.value,
+            "raw_edge": preliminary.raw_edge, "regime": state.regime.value,
+            "data_stale": state.snapshot.stale,
+        })
+        await self.event_bus.publish(Event(
+            "laboratory.probability_calibration",
+            {"symbol": state.symbol, "decision": preliminary.decision.value,
+             "ready": report.ready, "method": report.method,
+             "sample_count": report.sample_count, "execution_allowed": False},
+            "probability_calibration",
+        ))
         return result
 
     async def scanner_run(self) -> dict[str, object]:

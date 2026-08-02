@@ -6,6 +6,7 @@ from nexor_x.infrastructure.database import DatabaseService
 
 from .calibration import CalibrationEngine
 from .models import CalibrationEstimate, LaboratoryReport, OutcomeObservation
+from .probability import ProbabilityCalibrationEngine, ProbabilityCalibrationReport
 from .edge_discovery import EdgeDiscoveryEngine
 from .validator import WalkForwardValidator
 
@@ -14,11 +15,17 @@ class LaboratoryService:
     def __init__(
         self, database: DatabaseService, minimum_samples: int = 30,
         minimum_expected_r: float = 0.05, minimum_profit_factor: float = 1.10,
-        maximum_fdr: float = 0.10,
+        maximum_fdr: float = 0.10, probability_minimum_samples: int = 60,
+        probability_holdout_fraction: float = 0.25, probability_kelly_fraction: float = 0.25,
     ) -> None:
         self.database = database
         self.calibration = CalibrationEngine(minimum_samples=minimum_samples)
         self.validator = WalkForwardValidator(self.calibration)
+        self.probability = ProbabilityCalibrationEngine(
+            minimum_samples=probability_minimum_samples,
+            holdout_fraction=probability_holdout_fraction,
+            kelly_fraction=probability_kelly_fraction,
+        )
         self.edge_discovery = EdgeDiscoveryEngine(
             database, minimum_samples=minimum_samples,
             minimum_expected_r=minimum_expected_r,
@@ -52,6 +59,14 @@ class LaboratoryService:
             regime=regime,
         )
 
+
+    async def probability_estimate(
+        self, raw_edge: float, decision: str, regime: str
+    ) -> ProbabilityCalibrationReport:
+        return self.probability.calibrate(
+            raw_edge, await self.observations(), decision=decision, regime=regime
+        )
+
     async def report(self) -> LaboratoryReport:
         return self.validator.run(await self.observations())
 
@@ -67,6 +82,7 @@ class LaboratoryService:
         return {
             "observation_count": len(observations),
             "minimum_samples_per_context": self.calibration.minimum_samples,
+            "probability_minimum_samples": self.probability.minimum_samples,
             "walk_forward": report.to_dict(),
             "execution_allowed": False,
             "live_certified": False,

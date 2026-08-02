@@ -56,6 +56,9 @@ class Settings(BaseSettings):
     position_trailing_start_r: float = Field(default=2.0, gt=0, le=50)
     position_trailing_distance_r: float = Field(default=0.8, gt=0, le=20)
     edge_discovery_maximum_fdr: float = Field(default=0.10, gt=0, le=0.50)
+    probability_minimum_samples: int = Field(default=60, ge=20, le=100000)
+    probability_holdout_fraction: float = Field(default=0.25, ge=0.15, le=0.40)
+    probability_kelly_fraction: float = Field(default=0.25, gt=0, le=1.0)
 
     @property
     def scanner_symbol_list(self) -> tuple[str, ...]:
@@ -91,6 +94,7 @@ def _yaml_values(path: Path = Path("config/settings.yaml")) -> dict[str, Any]:
     scanner = raw.get("scanner", {})
     position = raw.get("position_management", {})
     discovery = raw.get("edge_discovery", {})
+    probability = raw.get("probability_calibration", {})
     return {
         "nexor_mode": system.get("mode", "PAPER"),
         "nexor_host": system.get("host", "127.0.0.1"),
@@ -131,6 +135,9 @@ def _yaml_values(path: Path = Path("config/settings.yaml")) -> dict[str, Any]:
         "position_trailing_start_r": position.get("trailing_start_r", 2.0),
         "position_trailing_distance_r": position.get("trailing_distance_r", 0.8),
         "edge_discovery_maximum_fdr": discovery.get("maximum_fdr", 0.10),
+        "probability_minimum_samples": probability.get("minimum_samples", 60),
+        "probability_holdout_fraction": probability.get("holdout_fraction", 0.25),
+        "probability_kelly_fraction": probability.get("kelly_fraction", 0.25),
     }
 
 
@@ -176,6 +183,9 @@ def _environment_overrides() -> dict[str, Any]:
         "POSITION_TRAILING_START_R": "position_trailing_start_r",
         "POSITION_TRAILING_DISTANCE_R": "position_trailing_distance_r",
         "EDGE_DISCOVERY_MAXIMUM_FDR": "edge_discovery_maximum_fdr",
+        "PROBABILITY_MINIMUM_SAMPLES": "probability_minimum_samples",
+        "PROBABILITY_HOLDOUT_FRACTION": "probability_holdout_fraction",
+        "PROBABILITY_KELLY_FRACTION": "probability_kelly_fraction",
     }
     values: dict[str, Any] = {}
     for env_name, field_name in mapping.items():

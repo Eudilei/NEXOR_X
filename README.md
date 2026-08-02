@@ -61,3 +61,13 @@ A configuração fica em `config/settings.yaml`, na seção `scanner`.
 ## Sprint 11 — Edge Discovery
 
 O laboratório identifica hipóteses de edge por contexto com estabilidade temporal e controle de falsos positivos (Benjamini–Hochberg). Use `POST /api/edges/discover` para executar e `GET /api/edges/status` para consultar o último estudo. Nenhum resultado autoriza execução ou LIVE.
+
+## Sprint 12 — Probability Calibration
+
+Novo endpoint observacional:
+
+```text
+GET /api/probability/{symbol}
+```
+
+Compara Platt Scaling e calibração isotônica em holdout temporal e retorna probabilidade calibrada, IC95%, Brier Score, ECE, Expected R, Profit Factor e Kelly fracionado. A execução e o modo LIVE continuam bloqueados.
