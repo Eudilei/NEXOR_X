@@ -43,7 +43,10 @@ class Kernel:
         self.evidence_engine = EvidenceEngine()
         self.quant_brain = QuantBrain()
         self.laboratory = LaboratoryService(
-            self.database, minimum_samples=settings.minimum_calibration_samples
+            self.database, minimum_samples=settings.minimum_calibration_samples,
+            minimum_expected_r=settings.minimum_expected_r,
+            minimum_profit_factor=settings.minimum_profit_factor,
+            maximum_fdr=settings.edge_discovery_maximum_fdr,
         )
         self.portfolio = PortfolioService(self.database, settings.initial_paper_equity)
         self.pre_trade_gate = PreTradeGate(
@@ -233,6 +236,19 @@ class Kernel:
 
     async def laboratory_status(self) -> dict[str, object]:
         return await self.laboratory.status()
+
+    async def discover_edges(self) -> dict[str, object]:
+        result = await self.laboratory.discover_edges()
+        await self.event_bus.publish(Event(
+            "laboratory.edge_discovery",
+            {"run_id": result["run_id"], "discovered_count": result["discovered_count"],
+             "candidate_count": result["candidate_count"], "execution_allowed": False},
+            "edge_discovery",
+        ))
+        return result
+
+    async def edge_status(self) -> dict[str, object]:
+        return await self.laboratory.edge_status()
 
     async def portfolio_status(self) -> dict[str, object]:
         return await self.portfolio.snapshot()

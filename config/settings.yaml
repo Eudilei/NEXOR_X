@@ -52,3 +52,6 @@ position_management:
   partial_fraction: 0.35
   trailing_start_r: 2.0
   trailing_distance_r: 0.8
+
+edge_discovery:
+  maximum_fdr: 0.10

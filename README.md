@@ -56,3 +56,8 @@ Nesta fase o scanner é estritamente observacional: ele não abre posições aut
 - `POST /api/scanner/run`
 
 A configuração fica em `config/settings.yaml`, na seção `scanner`.
+
+
+## Sprint 11 — Edge Discovery
+
+O laboratório identifica hipóteses de edge por contexto com estabilidade temporal e controle de falsos positivos (Benjamini–Hochberg). Use `POST /api/edges/discover` para executar e `GET /api/edges/status` para consultar o último estudo. Nenhum resultado autoriza execução ou LIVE.

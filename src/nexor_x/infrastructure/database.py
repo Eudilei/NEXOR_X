@@ -105,6 +105,26 @@ CREATE TABLE IF NOT EXISTS scanner_candidates(
 CREATE INDEX IF NOT EXISTS idx_scanner_candidates_run_rank
 ON scanner_candidates(run_id, rank);
 
+CREATE TABLE IF NOT EXISTS edge_discovery_runs(
+ run_id TEXT PRIMARY KEY,
+ generated_at TEXT NOT NULL,
+ observation_count INTEGER NOT NULL,
+ candidate_count INTEGER NOT NULL,
+ discovered_count INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS edge_candidates(
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ run_id TEXT NOT NULL REFERENCES edge_discovery_runs(run_id) ON DELETE CASCADE,
+ scope TEXT NOT NULL, symbol TEXT, decision TEXT NOT NULL, regime TEXT NOT NULL,
+ edge_bucket TEXT NOT NULL, samples INTEGER NOT NULL, win_rate REAL NOT NULL,
+ win_rate_lower_95 REAL NOT NULL, expected_r REAL NOT NULL, profit_factor REAL,
+ first_half_expected_r REAL NOT NULL, second_half_expected_r REAL NOT NULL,
+ stable INTEGER NOT NULL, p_value REAL NOT NULL, q_value REAL NOT NULL,
+ discovery_score REAL NOT NULL, status TEXT NOT NULL, reasons_json TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_edge_candidates_run_score
+ON edge_candidates(run_id, status, discovery_score DESC);
+
 """
 
 class DatabaseService(BaseService):
