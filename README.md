@@ -71,3 +71,12 @@ GET /api/probability/{symbol}
 ```
 
 Compara Platt Scaling e calibração isotônica em holdout temporal e retorna probabilidade calibrada, IC95%, Brier Score, ECE, Expected R, Profit Factor e Kelly fracionado. A execução e o modo LIVE continuam bloqueados.
+
+
+## Sprint 14
+
+- Monte Carlo Engine por moving-block bootstrap
+- distribuicao de equity e drawdown
+- probabilidade de ruina
+- persistencia e endpoints administrativos
+- nenhuma autorizacao LIVE

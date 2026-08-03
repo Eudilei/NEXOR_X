@@ -9,6 +9,7 @@ from .models import CalibrationEstimate, LaboratoryReport, OutcomeObservation
 from .probability import ProbabilityCalibrationEngine, ProbabilityCalibrationReport
 from .edge_discovery import EdgeDiscoveryEngine
 from .validator import WalkForwardValidator
+from .monte_carlo import MonteCarloConfig, MonteCarloEngine
 
 
 class LaboratoryService:
@@ -17,6 +18,7 @@ class LaboratoryService:
         minimum_expected_r: float = 0.05, minimum_profit_factor: float = 1.10,
         maximum_fdr: float = 0.10, probability_minimum_samples: int = 60,
         probability_holdout_fraction: float = 0.25, probability_kelly_fraction: float = 0.25,
+        monte_carlo_minimum_observations: int = 60,
     ) -> None:
         self.database = database
         self.calibration = CalibrationEngine(minimum_samples=minimum_samples)
@@ -26,6 +28,7 @@ class LaboratoryService:
             holdout_fraction=probability_holdout_fraction,
             kelly_fraction=probability_kelly_fraction,
         )
+        self.monte_carlo = MonteCarloEngine(database, minimum_observations=monte_carlo_minimum_observations)
         self.edge_discovery = EdgeDiscoveryEngine(
             database, minimum_samples=minimum_samples,
             minimum_expected_r=minimum_expected_r,
@@ -72,6 +75,19 @@ class LaboratoryService:
 
     async def discover_edges(self) -> dict[str, object]:
         return await self.edge_discovery.discover(await self.observations())
+
+
+    async def run_monte_carlo(
+        self, config: MonteCarloConfig, *, symbol: str | None = None,
+        decision: str | None = None, regime: str | None = None,
+    ) -> dict[str, object]:
+        report = await self.monte_carlo.run(
+            await self.observations(), config, symbol=symbol, decision=decision, regime=regime
+        )
+        return report.to_dict()
+
+    async def monte_carlo_status(self) -> dict[str, object]:
+        return await self.monte_carlo.latest()
 
     async def edge_status(self) -> dict[str, object]:
         return await self.edge_discovery.latest()

@@ -19,6 +19,7 @@ from nexor_x.market.engine import MarketIntelligenceEngine
 from nexor_x.evidence import EvidenceEngine
 from nexor_x.quant import QuantBrain
 from nexor_x.laboratory import LaboratoryService
+from nexor_x.laboratory.monte_carlo import MonteCarloConfig
 from nexor_x.portfolio import PortfolioService
 from nexor_x.risk import PreTradeGate
 from nexor_x.execution import PaperExecutionService
@@ -50,6 +51,7 @@ class Kernel:
             probability_minimum_samples=settings.probability_minimum_samples,
             probability_holdout_fraction=settings.probability_holdout_fraction,
             probability_kelly_fraction=settings.probability_kelly_fraction,
+            monte_carlo_minimum_observations=settings.monte_carlo_minimum_observations,
         )
         self.portfolio = PortfolioService(self.database, settings.initial_paper_equity)
         self.pre_trade_gate = PreTradeGate(
@@ -276,6 +278,39 @@ class Kernel:
 
     async def edge_status(self) -> dict[str, object]:
         return await self.laboratory.edge_status()
+
+    async def run_monte_carlo(
+        self, *, symbol: str | None = None, decision: str | None = None,
+        regime: str | None = None, simulations: int | None = None,
+        horizon_trades: int | None = None, block_size: int | None = None,
+        seed: int | None = None,
+    ) -> dict[str, object]:
+        config = MonteCarloConfig(
+            simulations=simulations or self.settings.monte_carlo_simulations,
+            horizon_trades=horizon_trades or self.settings.monte_carlo_horizon_trades,
+            block_size=block_size or self.settings.monte_carlo_block_size,
+            starting_equity_r=self.settings.initial_paper_equity,
+            ruin_drawdown_pct=self.settings.monte_carlo_ruin_drawdown_pct,
+            seed=self.settings.monte_carlo_seed if seed is None else seed,
+        )
+        result = await self.laboratory.run_monte_carlo(
+            config, symbol=symbol, decision=decision, regime=regime
+        )
+        await self.event_bus.publish(Event(
+            "laboratory.monte_carlo",
+            {
+                "run_id": result["run_id"], "status": result["status"],
+                "observation_count": result["observation_count"],
+                "probability_of_ruin": result["probability_of_ruin"],
+                "execution_allowed": False,
+            },
+            "monte_carlo",
+        ))
+        return result
+
+    async def monte_carlo_status(self) -> dict[str, object]:
+        return await self.laboratory.monte_carlo_status()
+
 
     async def portfolio_status(self) -> dict[str, object]:
         return await self.portfolio.snapshot()

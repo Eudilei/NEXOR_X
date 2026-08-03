@@ -60,6 +60,12 @@ class Settings(BaseSettings):
     probability_minimum_samples: int = Field(default=60, ge=20, le=100000)
     probability_holdout_fraction: float = Field(default=0.25, ge=0.15, le=0.40)
     probability_kelly_fraction: float = Field(default=0.25, gt=0, le=1.0)
+    monte_carlo_minimum_observations: int = Field(default=60, ge=20, le=100000)
+    monte_carlo_simulations: int = Field(default=5000, ge=100, le=100000)
+    monte_carlo_horizon_trades: int = Field(default=250, ge=20, le=100000)
+    monte_carlo_block_size: int = Field(default=10, ge=1, le=10000)
+    monte_carlo_ruin_drawdown_pct: float = Field(default=25.0, gt=0, le=100)
+    monte_carlo_seed: int = 20260803
 
     @property
     def scanner_symbol_list(self) -> tuple[str, ...]:
@@ -96,6 +102,7 @@ def _yaml_values(path: Path = Path("config/settings.yaml")) -> dict[str, Any]:
     position = raw.get("position_management", {})
     discovery = raw.get("edge_discovery", {})
     probability = raw.get("probability_calibration", {})
+    monte_carlo = raw.get("monte_carlo", {})
     return {
         "nexor_mode": system.get("mode", "PAPER"),
         "nexor_host": system.get("host", "127.0.0.1"),
@@ -140,6 +147,12 @@ def _yaml_values(path: Path = Path("config/settings.yaml")) -> dict[str, Any]:
         "probability_minimum_samples": probability.get("minimum_samples", 60),
         "probability_holdout_fraction": probability.get("holdout_fraction", 0.25),
         "probability_kelly_fraction": probability.get("kelly_fraction", 0.25),
+        "monte_carlo_minimum_observations": monte_carlo.get("minimum_observations", 60),
+        "monte_carlo_simulations": monte_carlo.get("simulations", 5000),
+        "monte_carlo_horizon_trades": monte_carlo.get("horizon_trades", 250),
+        "monte_carlo_block_size": monte_carlo.get("block_size", 10),
+        "monte_carlo_ruin_drawdown_pct": monte_carlo.get("ruin_drawdown_pct", 25.0),
+        "monte_carlo_seed": monte_carlo.get("seed", 20260803),
     }
 
 
@@ -189,6 +202,12 @@ def _environment_overrides() -> dict[str, Any]:
         "PROBABILITY_MINIMUM_SAMPLES": "probability_minimum_samples",
         "PROBABILITY_HOLDOUT_FRACTION": "probability_holdout_fraction",
         "PROBABILITY_KELLY_FRACTION": "probability_kelly_fraction",
+        "MONTE_CARLO_MINIMUM_OBSERVATIONS": "monte_carlo_minimum_observations",
+        "MONTE_CARLO_SIMULATIONS": "monte_carlo_simulations",
+        "MONTE_CARLO_HORIZON_TRADES": "monte_carlo_horizon_trades",
+        "MONTE_CARLO_BLOCK_SIZE": "monte_carlo_block_size",
+        "MONTE_CARLO_RUIN_DRAWDOWN_PCT": "monte_carlo_ruin_drawdown_pct",
+        "MONTE_CARLO_SEED": "monte_carlo_seed",
     }
     values: dict[str, Any] = {}
     for env_name, field_name in mapping.items():

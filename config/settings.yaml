@@ -62,3 +62,11 @@ probability_calibration:
   holdout_fraction: 0.25
   kelly_fraction: 0.25
 
+
+monte_carlo:
+  minimum_observations: 60
+  simulations: 5000
+  horizon_trades: 250
+  block_size: 10
+  ruin_drawdown_pct: 25.0
+  seed: 20260803

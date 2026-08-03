@@ -125,6 +125,19 @@ CREATE TABLE IF NOT EXISTS edge_candidates(
 CREATE INDEX IF NOT EXISTS idx_edge_candidates_run_score
 ON edge_candidates(run_id, status, discovery_score DESC);
 
+CREATE TABLE IF NOT EXISTS monte_carlo_runs(
+ run_id TEXT PRIMARY KEY, generated_at TEXT NOT NULL, status TEXT NOT NULL,
+ observation_count INTEGER NOT NULL, simulations INTEGER NOT NULL,
+ horizon_trades INTEGER NOT NULL, block_size INTEGER NOT NULL, seed INTEGER NOT NULL,
+ starting_equity_r REAL NOT NULL, ruin_drawdown_pct REAL NOT NULL,
+ expected_final_equity_r REAL, median_final_equity_r REAL, final_equity_p05_r REAL,
+ final_equity_p95_r REAL, median_max_drawdown_pct REAL, max_drawdown_p95_pct REAL,
+ probability_of_ruin REAL, probability_final_below_start REAL, reason TEXT NOT NULL,
+ symbol TEXT, decision TEXT, regime TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_monte_carlo_generated
+ON monte_carlo_runs(generated_at DESC);
+
 """
 
 class DatabaseService(BaseService):
