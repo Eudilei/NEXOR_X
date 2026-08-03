@@ -20,6 +20,7 @@ from nexor_x.evidence import EvidenceEngine
 from nexor_x.quant import QuantBrain
 from nexor_x.laboratory import LaboratoryService
 from nexor_x.laboratory.monte_carlo import MonteCarloConfig
+from nexor_x.laboratory.walk_forward import WalkForwardConfig
 from nexor_x.portfolio import PortfolioService
 from nexor_x.risk import PreTradeGate
 from nexor_x.execution import PaperExecutionService
@@ -311,6 +312,34 @@ class Kernel:
     async def monte_carlo_status(self) -> dict[str, object]:
         return await self.laboratory.monte_carlo_status()
 
+
+
+    async def run_walk_forward(
+        self, *, symbol: str | None = None, decision: str | None = None,
+        regime: str | None = None, folds: int | None = None,
+    ) -> dict[str, object]:
+        config = WalkForwardConfig(
+            folds=folds or self.settings.walk_forward_folds,
+            minimum_train_observations=self.settings.walk_forward_minimum_train_observations,
+            minimum_test_observations=self.settings.walk_forward_minimum_test_observations,
+            minimum_pass_ratio=self.settings.walk_forward_minimum_pass_ratio,
+            minimum_profit_factor=self.settings.walk_forward_minimum_profit_factor,
+            minimum_expected_r=self.settings.minimum_expected_r,
+        )
+        result = await self.laboratory.run_walk_forward(
+            config, symbol=symbol, decision=decision, regime=regime
+        )
+        await self.event_bus.publish(Event(
+            "laboratory.walk_forward",
+            {"run_id": result["run_id"], "status": result["status"],
+             "passed_folds": result["passed_folds"], "folds_completed": result["folds_completed"],
+             "execution_allowed": False},
+            "walk_forward",
+        ))
+        return result
+
+    async def walk_forward_status(self) -> dict[str, object]:
+        return await self.laboratory.walk_forward_status()
 
     async def portfolio_status(self) -> dict[str, object]:
         return await self.portfolio.snapshot()

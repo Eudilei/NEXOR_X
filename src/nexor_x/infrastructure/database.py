@@ -138,6 +138,18 @@ CREATE TABLE IF NOT EXISTS monte_carlo_runs(
 CREATE INDEX IF NOT EXISTS idx_monte_carlo_generated
 ON monte_carlo_runs(generated_at DESC);
 
+CREATE TABLE IF NOT EXISTS walk_forward_runs(
+ run_id TEXT PRIMARY KEY, generated_at TEXT NOT NULL, status TEXT NOT NULL,
+ observation_count INTEGER NOT NULL, eligible_observations INTEGER NOT NULL,
+ folds_requested INTEGER NOT NULL, folds_completed INTEGER NOT NULL,
+ passed_folds INTEGER NOT NULL, pass_ratio REAL NOT NULL,
+ aggregate_realized_r REAL NOT NULL, aggregate_profit_factor REAL,
+ worst_fold_realized_r REAL, reason TEXT NOT NULL,
+ symbol TEXT, decision TEXT, regime TEXT, folds_json TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_walk_forward_generated
+ON walk_forward_runs(generated_at DESC);
+
 """
 
 class DatabaseService(BaseService):

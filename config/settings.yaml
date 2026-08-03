@@ -70,3 +70,11 @@ monte_carlo:
   block_size: 10
   ruin_drawdown_pct: 25.0
   seed: 20260803
+
+
+walk_forward:
+  folds: 5
+  minimum_train_observations: 60
+  minimum_test_observations: 20
+  minimum_pass_ratio: 0.60
+  minimum_profit_factor: 1.05

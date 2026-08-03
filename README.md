@@ -80,3 +80,7 @@ Compara Platt Scaling e calibração isotônica em holdout temporal e retorna pr
 - probabilidade de ruina
 - persistencia e endpoints administrativos
 - nenhuma autorizacao LIVE
+
+## Sprint 15 — Walk-Forward Contínuo
+
+Validação temporal persistente por janelas expansivas, com filtros contextuais e endpoints `/api/walk-forward/status` e `/api/walk-forward/run`. Aprovação não autoriza execução nem LIVE.

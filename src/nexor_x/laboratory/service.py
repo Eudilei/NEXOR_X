@@ -10,6 +10,7 @@ from .probability import ProbabilityCalibrationEngine, ProbabilityCalibrationRep
 from .edge_discovery import EdgeDiscoveryEngine
 from .validator import WalkForwardValidator
 from .monte_carlo import MonteCarloConfig, MonteCarloEngine
+from .walk_forward import ContinuousWalkForwardEngine, WalkForwardConfig
 
 
 class LaboratoryService:
@@ -29,6 +30,7 @@ class LaboratoryService:
             kelly_fraction=probability_kelly_fraction,
         )
         self.monte_carlo = MonteCarloEngine(database, minimum_observations=monte_carlo_minimum_observations)
+        self.walk_forward_engine = ContinuousWalkForwardEngine(database, self.calibration)
         self.edge_discovery = EdgeDiscoveryEngine(
             database, minimum_samples=minimum_samples,
             minimum_expected_r=minimum_expected_r,
@@ -88,6 +90,19 @@ class LaboratoryService:
 
     async def monte_carlo_status(self) -> dict[str, object]:
         return await self.monte_carlo.latest()
+
+
+    async def run_walk_forward(
+        self, config: WalkForwardConfig, *, symbol: str | None = None,
+        decision: str | None = None, regime: str | None = None,
+    ) -> dict[str, object]:
+        report = await self.walk_forward_engine.run(
+            await self.observations(), config, symbol=symbol, decision=decision, regime=regime
+        )
+        return report.to_dict()
+
+    async def walk_forward_status(self) -> dict[str, object]:
+        return await self.walk_forward_engine.latest()
 
     async def edge_status(self) -> dict[str, object]:
         return await self.edge_discovery.latest()

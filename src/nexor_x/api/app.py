@@ -29,6 +29,13 @@ class MonteCarloRequest(BaseModel):
     seed: int | None = None
 
 
+class WalkForwardRequest(BaseModel):
+    symbol: str | None = Field(default=None, min_length=3, max_length=30)
+    decision: str | None = Field(default=None, min_length=3, max_length=40)
+    regime: str | None = Field(default=None, min_length=3, max_length=40)
+    folds: int | None = Field(default=None, ge=2, le=20)
+
+
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
 
@@ -135,6 +142,23 @@ def create_app(kernel: Any) -> FastAPI:
                 decision=body.decision, regime=body.regime,
                 simulations=body.simulations, horizon_trades=body.horizon_trades,
                 block_size=body.block_size, seed=body.seed,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+    @app.get("/api/walk-forward/status")
+    async def walk_forward_status() -> dict[str, Any]:
+        return await kernel.walk_forward_status()
+
+    @app.post("/api/walk-forward/run")
+    async def walk_forward_run(
+        body: WalkForwardRequest, _: None = Depends(require_admin)
+    ) -> dict[str, Any]:
+        try:
+            return await kernel.run_walk_forward(
+                symbol=body.symbol.upper() if body.symbol else None,
+                decision=body.decision, regime=body.regime, folds=body.folds,
             )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc

@@ -10,3 +10,5 @@ __all__ = [
     "LaboratoryReport", "LaboratoryService", "OutcomeObservation", "ProbabilityCalibrationEngine",
     "ProbabilityCalibrationReport", "WalkForwardValidator",
 ]
+
+from .walk_forward import ContinuousWalkForwardEngine, WalkForwardConfig, WalkForwardRun

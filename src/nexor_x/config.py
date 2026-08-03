@@ -66,6 +66,11 @@ class Settings(BaseSettings):
     monte_carlo_block_size: int = Field(default=10, ge=1, le=10000)
     monte_carlo_ruin_drawdown_pct: float = Field(default=25.0, gt=0, le=100)
     monte_carlo_seed: int = 20260803
+    walk_forward_folds: int = Field(default=5, ge=2, le=20)
+    walk_forward_minimum_train_observations: int = Field(default=60, ge=20, le=100000)
+    walk_forward_minimum_test_observations: int = Field(default=20, ge=5, le=100000)
+    walk_forward_minimum_pass_ratio: float = Field(default=0.60, gt=0, le=1)
+    walk_forward_minimum_profit_factor: float = Field(default=1.05, ge=0, le=100)
 
     @property
     def scanner_symbol_list(self) -> tuple[str, ...]:
@@ -103,6 +108,7 @@ def _yaml_values(path: Path = Path("config/settings.yaml")) -> dict[str, Any]:
     discovery = raw.get("edge_discovery", {})
     probability = raw.get("probability_calibration", {})
     monte_carlo = raw.get("monte_carlo", {})
+    walk_forward = raw.get("walk_forward", {})
     return {
         "nexor_mode": system.get("mode", "PAPER"),
         "nexor_host": system.get("host", "127.0.0.1"),
@@ -153,6 +159,11 @@ def _yaml_values(path: Path = Path("config/settings.yaml")) -> dict[str, Any]:
         "monte_carlo_block_size": monte_carlo.get("block_size", 10),
         "monte_carlo_ruin_drawdown_pct": monte_carlo.get("ruin_drawdown_pct", 25.0),
         "monte_carlo_seed": monte_carlo.get("seed", 20260803),
+        "walk_forward_folds": walk_forward.get("folds", 5),
+        "walk_forward_minimum_train_observations": walk_forward.get("minimum_train_observations", 60),
+        "walk_forward_minimum_test_observations": walk_forward.get("minimum_test_observations", 20),
+        "walk_forward_minimum_pass_ratio": walk_forward.get("minimum_pass_ratio", 0.60),
+        "walk_forward_minimum_profit_factor": walk_forward.get("minimum_profit_factor", 1.05),
     }
 
 
@@ -208,6 +219,11 @@ def _environment_overrides() -> dict[str, Any]:
         "MONTE_CARLO_BLOCK_SIZE": "monte_carlo_block_size",
         "MONTE_CARLO_RUIN_DRAWDOWN_PCT": "monte_carlo_ruin_drawdown_pct",
         "MONTE_CARLO_SEED": "monte_carlo_seed",
+        "WALK_FORWARD_FOLDS": "walk_forward_folds",
+        "WALK_FORWARD_MINIMUM_TRAIN_OBSERVATIONS": "walk_forward_minimum_train_observations",
+        "WALK_FORWARD_MINIMUM_TEST_OBSERVATIONS": "walk_forward_minimum_test_observations",
+        "WALK_FORWARD_MINIMUM_PASS_RATIO": "walk_forward_minimum_pass_ratio",
+        "WALK_FORWARD_MINIMUM_PROFIT_FACTOR": "walk_forward_minimum_profit_factor",
     }
     values: dict[str, Any] = {}
     for env_name, field_name in mapping.items():
