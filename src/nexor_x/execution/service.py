@@ -88,15 +88,23 @@ class PaperExecutionService:
             )
             if duplicates:
                 return self._rejected(symbol, side, "ja existe posicao aberta no simbolo", now)
-            position_id = await self.database.execute_returning_id(
-                """INSERT INTO portfolio_positions
-                (symbol, side, quantity, entry_price, notional, status, opened_at,
-                 stop_price, entry_fee, realized_pnl, exit_price, exit_fee, close_reason,
-                 initial_stop_price, highest_price, lowest_price, partial_taken, partial_realized_pnl)
-                VALUES (?, ?, ?, ?, ?, 'OPEN', ?, ?, ?, 0.0, NULL, 0.0, NULL, ?, ?, ?, 0, 0.0)""",
-                (symbol, side, quantity, entry_price, notional, now.isoformat(), stop_price, fee,
-                 stop_price, entry_price, entry_price),
-            )
+            ids = await self.database.transaction([
+                (
+                    """INSERT INTO portfolio_positions
+                    (symbol, side, quantity, entry_price, notional, status, opened_at,
+                     stop_price, entry_fee, realized_pnl, exit_price, exit_fee, close_reason,
+                     initial_stop_price, highest_price, lowest_price, partial_taken, partial_realized_pnl)
+                    VALUES (?, ?, ?, ?, ?, 'OPEN', ?, ?, ?, 0.0, NULL, 0.0, NULL, ?, ?, ?, 0, 0.0)""",
+                    (symbol, side, quantity, entry_price, notional, now.isoformat(), stop_price, fee,
+                     stop_price, entry_price, entry_price),
+                ),
+                (
+                    """UPDATE portfolio_accounts SET equity=equity-?, realized_pnl=realized_pnl-?,
+                    updated_at=? WHERE account_id='PAPER'""",
+                    (fee, fee, now.isoformat()),
+                ),
+            ])
+            position_id = ids[0]
         return PaperFill(
             position_id=position_id,
             symbol=symbol,
@@ -133,17 +141,20 @@ class PaperExecutionService:
             net = gross - allocated_entry_fee - exit_fee
             remaining = quantity - quantity_to_close
             now = datetime.now(UTC).isoformat()
-            await self.database.execute(
-                """UPDATE portfolio_positions SET quantity=?, notional=quantity*entry_price,
-                entry_fee=entry_fee-?, partial_realized_pnl=?, realized_pnl=realized_pnl+?
-                WHERE id=? AND status='OPEN'""",
-                (remaining, allocated_entry_fee, float(prior_partial)+net, net, position_id),
-            )
-            await self.database.execute(
-                """UPDATE portfolio_accounts SET equity=equity+?, realized_pnl=realized_pnl+?,
-                peak_equity=MAX(peak_equity, equity+?), updated_at=? WHERE account_id='PAPER'""",
-                (net, net, net, now),
-            )
+            account_delta = gross - exit_fee
+            await self.database.transaction([
+                (
+                    """UPDATE portfolio_positions SET quantity=?, notional=quantity*entry_price,
+                    entry_fee=entry_fee-?, partial_realized_pnl=?, realized_pnl=realized_pnl+?
+                    WHERE id=? AND status='OPEN'""",
+                    (remaining, allocated_entry_fee, float(prior_partial)+net, net, position_id),
+                ),
+                (
+                    """UPDATE portfolio_accounts SET equity=equity+?, realized_pnl=realized_pnl+?,
+                    peak_equity=MAX(peak_equity, equity+?), updated_at=? WHERE account_id='PAPER'""",
+                    (account_delta, account_delta, account_delta, now),
+                ),
+            ])
         return {"position_id": position_id, "symbol": symbol, "side": side,
                 "quantity_closed": round(quantity_to_close, 12), "quantity_remaining": round(remaining, 12),
                 "exit_price": round(exit_price, 12), "net_pnl": round(net, 8),
@@ -168,16 +179,19 @@ class PaperExecutionService:
             exit_fee = abs(float(notional)) * self.fee_rate
             net = gross - float(entry_fee) - exit_fee
             now = datetime.now(UTC).isoformat()
-            await self.database.execute(
-                """UPDATE portfolio_positions SET status='CLOSED', closed_at=?, exit_price=?,
-                exit_fee=?, realized_pnl=?, close_reason=? WHERE id=? AND status='OPEN'""",
-                (now, exit_price, exit_fee, net, reason[:120], position_id),
-            )
-            await self.database.execute(
-                """UPDATE portfolio_accounts SET equity=equity+?, realized_pnl=realized_pnl+?,
-                peak_equity=MAX(peak_equity, equity+?), updated_at=? WHERE account_id='PAPER'""",
-                (net, net, net, now),
-            )
+            account_delta = gross - exit_fee
+            await self.database.transaction([
+                (
+                    """UPDATE portfolio_positions SET status='CLOSED', closed_at=?, exit_price=?,
+                    exit_fee=?, realized_pnl=?, close_reason=? WHERE id=? AND status='OPEN'""",
+                    (now, exit_price, exit_fee, net, reason[:120], position_id),
+                ),
+                (
+                    """UPDATE portfolio_accounts SET equity=equity+?, realized_pnl=realized_pnl+?,
+                    peak_equity=MAX(peak_equity, equity+?), updated_at=? WHERE account_id='PAPER'""",
+                    (account_delta, account_delta, account_delta, now),
+                ),
+            ])
         return {
             "position_id": position_id,
             "symbol": symbol,

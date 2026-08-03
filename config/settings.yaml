@@ -5,6 +5,7 @@ system:
   log_level: INFO
   database_path: data/nexor_x.db
   allow_live_mode: false
+  admin_api_token: ""
 
 binance:
   api_key: ""

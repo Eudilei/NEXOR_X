@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import random
 from dataclasses import dataclass
 from statistics import mean
 from typing import Iterable, Sequence
@@ -126,13 +127,16 @@ class ProbabilityCalibrationEngine:
             fitted = [self._predict_platt(model, value) for value in x_all]
 
         probability = self._clip_probability(probability)
-        low, high = self._wilson_interval(probability, count)
+        low, high = self._bootstrap_interval(raw_edge, selected, method)
         expected_r = mean(item.realized_r for item in selected)
         gross_profit = sum(item.realized_r for item in selected if item.realized_r > 0)
         gross_loss = abs(sum(item.realized_r for item in selected if item.realized_r < 0))
         profit_factor = gross_profit / gross_loss if gross_loss > 0 else None
-        brier = self._brier(fitted, y_all)
-        ece = self._ece(fitted, y_all)
+        # Report calibration quality out of sample. In-sample metrics are
+        # optimistically biased and must not drive readiness or risk decisions.
+        selected_hold_predictions = iso_hold if method == "ISOTONIC" else platt_hold
+        brier = self._brier(selected_hold_predictions, y_hold)
+        ece = self._ece(selected_hold_predictions, y_hold)
         avg_win = mean([item.realized_r for item in selected if item.realized_r > 0] or [0.0])
         avg_loss = abs(mean([item.realized_r for item in selected if item.realized_r < 0] or [-1.0]))
         payoff = avg_win / avg_loss if avg_loss > 0 else 0.0
@@ -152,7 +156,7 @@ class ProbabilityCalibrationEngine:
             expected_calibration_error=round(ece, 6),
             fractional_kelly=round(fractional_kelly, 6),
             validation_brier=round(validation_brier, 6),
-            reason="calibracao temporal concluida; uso operacional continua bloqueado ate certificacao",
+            reason="calibracao temporal concluida; metricas fora da amostra e IC bootstrap; uso operacional bloqueado",
         )
 
     @staticmethod
@@ -229,6 +233,38 @@ class ProbabilityCalibrationEngine:
             accuracy = mean(outcomes[i] for i in indexes)
             error += len(indexes) / total * abs(confidence - accuracy)
         return error
+
+    def _bootstrap_interval(
+        self,
+        raw_edge: float,
+        observations: Sequence[OutcomeObservation],
+        method: str,
+        repetitions: int = 200,
+    ) -> tuple[float, float]:
+        """Percentile bootstrap interval for the model prediction.
+
+        This replaces the invalid use of a binomial Wilson interval around a
+        fitted probability. The deterministic seed keeps tests and reports
+        reproducible while still measuring sampling uncertainty.
+        """
+        rng = random.Random(7331)
+        values: list[float] = []
+        count = len(observations)
+        for _ in range(repetitions):
+            sample = [observations[rng.randrange(count)] for _ in range(count)]
+            xs = [item.raw_edge for item in sample]
+            ys = [1.0 if item.won else 0.0 for item in sample]
+            if method == "ISOTONIC":
+                model = self._fit_isotonic(xs, ys)
+                prediction = self._predict_isotonic(model, raw_edge)
+            else:
+                model = self._fit_platt(xs, ys)
+                prediction = self._predict_platt(model, raw_edge)
+            values.append(self._clip_probability(prediction))
+        values.sort()
+        low_index = max(0, int(0.025 * (len(values) - 1)))
+        high_index = min(len(values) - 1, int(0.975 * (len(values) - 1)))
+        return values[low_index], values[high_index]
 
     @staticmethod
     def _wilson_interval(probability: float, count: int) -> tuple[float, float]:

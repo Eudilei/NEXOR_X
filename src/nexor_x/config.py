@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://127.0.0.1:11434"
     ollama_model: str = "llama3.2:3b"
     allow_live_mode: bool = False
+    admin_api_token: str = ""
     market_cache_ttl_seconds: float = Field(default=15.0, ge=1.0, le=300.0)
     market_stale_after_seconds: float = Field(default=120.0, ge=10.0, le=3600.0)
     market_failure_cooldown_seconds: float = Field(default=60.0, ge=5.0, le=900.0)
@@ -76,7 +77,7 @@ class Settings(BaseSettings):
 
     def public_dict(self) -> dict[str, Any]:
         data = self.model_dump(mode="json")
-        for key in ("binance_api_key", "binance_api_secret", "telegram_bot_token"):
+        for key in ("binance_api_key", "binance_api_secret", "telegram_bot_token", "admin_api_token"):
             data[key] = "***" if data.get(key) else ""
         return data
 
@@ -102,6 +103,7 @@ def _yaml_values(path: Path = Path("config/settings.yaml")) -> dict[str, Any]:
         "nexor_log_level": system.get("log_level", "INFO"),
         "nexor_database_path": system.get("database_path", "data/nexor_x.db"),
         "allow_live_mode": system.get("allow_live_mode", False),
+        "admin_api_token": system.get("admin_api_token", ""),
         "binance_api_key": binance.get("api_key", ""),
         "binance_api_secret": binance.get("api_secret", ""),
         "binance_testnet": binance.get("testnet", False),
@@ -157,6 +159,7 @@ def _environment_overrides() -> dict[str, Any]:
         "OLLAMA_BASE_URL": "ollama_base_url",
         "OLLAMA_MODEL": "ollama_model",
         "ALLOW_LIVE_MODE": "allow_live_mode",
+        "NEXOR_ADMIN_API_TOKEN": "admin_api_token",
         "MARKET_CACHE_TTL_SECONDS": "market_cache_ttl_seconds",
         "MARKET_STALE_AFTER_SECONDS": "market_stale_after_seconds",
         "MARKET_FAILURE_COOLDOWN_SECONDS": "market_failure_cooldown_seconds",

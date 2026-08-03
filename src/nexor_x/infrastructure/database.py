@@ -179,6 +179,28 @@ class DatabaseService(BaseService):
             self._connection.commit()
             return int(cursor.lastrowid)
 
+
+    async def transaction(self, statements: list[tuple[str, tuple[object, ...]]]) -> list[int]:
+        """Execute statements atomically and return lastrowid values.
+
+        SQLite calls remain serialized by the service lock. A failure rolls back the
+        whole unit, preventing position/account divergence after process crashes.
+        """
+        if self._connection is None:
+            raise RuntimeError("Database is not started")
+        async with self._lock:
+            ids: list[int] = []
+            try:
+                self._connection.execute("BEGIN IMMEDIATE")
+                for sql, parameters in statements:
+                    cursor = self._connection.execute(sql, parameters)
+                    ids.append(int(cursor.lastrowid or 0))
+                self._connection.commit()
+                return ids
+            except Exception:
+                self._connection.rollback()
+                raise
+
     async def fetchall(
         self, sql: str, parameters: tuple[object, ...] = ()
     ) -> list[tuple[object, ...]]:

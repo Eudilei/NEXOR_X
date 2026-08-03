@@ -21,6 +21,8 @@ services:
         value: /tmp/nexor_x.db
       - key: ALLOW_LIVE_MODE
         value: "false"
+      - key: NEXOR_ADMIN_API_TOKEN
+        generateValue: true
       - key: BINANCE_API_KEY
         sync: false
       - key: BINANCE_API_SECRET
