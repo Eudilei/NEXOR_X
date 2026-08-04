@@ -78,6 +78,26 @@ class AllocationPlanRequest(BaseModel):
     portfolio_drawdown_pct: float = Field(ge=0, le=100)
     candidates: list[AllocationCandidateRequest] = Field(min_length=1, max_length=100)
 
+class CertificationRequest(BaseModel):
+    paper_trades: int = Field(ge=0, le=100000000)
+    profit_factor: float = Field(ge=0, le=1000)
+    expected_r: float = Field(ge=-100, le=100)
+    maximum_drawdown_pct: float = Field(ge=0, le=100)
+    walk_forward_pass_ratio: float = Field(ge=0, le=1)
+    monte_carlo_ruin_probability: float = Field(ge=0, le=1)
+    brier_score_oos: float = Field(ge=0, le=1)
+    calibration_ece_oos: float = Field(ge=0, le=1)
+    operational_incidents: int = Field(ge=0, le=1000000)
+    critical_test_failures: int = Field(ge=0, le=1000000)
+    days_in_paper: int = Field(ge=0, le=100000)
+    recent_profit_factor: float = Field(ge=0, le=1000)
+    recent_expected_r: float = Field(ge=-100, le=100)
+    data_freshness_ok: bool
+    reconciliation_ok: bool
+    secrets_configured: bool
+    live_connector_tested: bool
+    manual_owner_approval: bool = False
+
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
 
@@ -245,6 +265,19 @@ def create_app(kernel: Any) -> FastAPI:
     ) -> dict[str, Any]:
         try:
             return await kernel.allocation_plan(body.model_dump())
+        except (KeyError, TypeError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.get("/api/certification/status")
+    async def certification_status() -> dict[str, Any]:
+        return await kernel.certification_status()
+
+    @app.post("/api/certification/evaluate")
+    async def certification_evaluate(
+        body: CertificationRequest, _: None = Depends(require_admin)
+    ) -> dict[str, Any]:
+        try:
+            return await kernel.certification_evaluate(body.model_dump())
         except (KeyError, TypeError, ValueError) as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 

@@ -13,6 +13,18 @@ from .domain import OperatingMode
 
 
 class Settings(BaseSettings):
+    certification_minimum_paper_trades: int = 1000
+    certification_minimum_profit_factor: float = 1.40
+    certification_minimum_expected_r: float = 0.05
+    certification_maximum_drawdown_pct: float = 15.0
+    certification_minimum_walk_forward_pass_ratio: float = 0.70
+    certification_maximum_ruin_probability: float = 0.02
+    certification_maximum_brier_score_oos: float = 0.24
+    certification_maximum_ece_oos: float = 0.08
+    certification_minimum_days_in_paper: int = 30
+    certification_minimum_recent_profit_factor: float = 1.15
+    certification_minimum_recent_expected_r: float = 0.01
+
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", extra="ignore", case_sensitive=False
     )

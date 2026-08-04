@@ -93,3 +93,16 @@ allocation:
   maximum_candidate_drawdown_r: 8.0
   recovery_drawdown_trigger_pct: 10.0
   recovery_risk_multiplier: 0.35
+
+certification:
+  minimum_paper_trades: 1000
+  minimum_profit_factor: 1.40
+  minimum_expected_r: 0.05
+  maximum_drawdown_pct: 15.0
+  minimum_walk_forward_pass_ratio: 0.70
+  maximum_ruin_probability: 0.02
+  maximum_brier_score_oos: 0.24
+  maximum_ece_oos: 0.08
+  minimum_days_in_paper: 30
+  minimum_recent_profit_factor: 1.15
+  minimum_recent_expected_r: 0.01

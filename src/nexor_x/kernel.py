@@ -28,6 +28,7 @@ from nexor_x.execution import PaperExecutionService
 from nexor_x.scanner import MarketScannerService
 from nexor_x.position import PositionManagementService
 from nexor_x.position.service import PositionPolicy
+from nexor_x.certification import CertificationPolicy, CertificationService
 from nexor_x.allocation import AllocationService, AllocationPolicy
 from nexor_x.strategy import StrategyOrchestrationService
 
@@ -102,6 +103,24 @@ class Kernel:
                 recovery_risk_multiplier=settings.allocation_recovery_risk_multiplier,
             ),
         )
+        self.certification = CertificationService(
+            self.database,
+            CertificationPolicy(
+                minimum_paper_trades=settings.certification_minimum_paper_trades,
+                minimum_profit_factor=settings.certification_minimum_profit_factor,
+                minimum_expected_r=settings.certification_minimum_expected_r,
+                maximum_drawdown_pct=settings.certification_maximum_drawdown_pct,
+                minimum_walk_forward_pass_ratio=settings.certification_minimum_walk_forward_pass_ratio,
+                maximum_monte_carlo_ruin_probability=settings.certification_maximum_ruin_probability,
+                maximum_brier_score_oos=settings.certification_maximum_brier_score_oos,
+                maximum_calibration_ece_oos=settings.certification_maximum_ece_oos,
+                maximum_operational_incidents=0,
+                maximum_critical_test_failures=0,
+                minimum_days_in_paper=settings.certification_minimum_days_in_paper,
+                minimum_recent_profit_factor=settings.certification_minimum_recent_profit_factor,
+                minimum_recent_expected_r=settings.certification_minimum_recent_expected_r,
+            ),
+        )
         self.scanner = MarketScannerService(
             self.database,
             self.quant_assessment,
@@ -156,6 +175,7 @@ class Kernel:
                 self._log.error("service_start_failed service=%s error=%s", service.name, exc)
         await self.watchdog.start()
         await self.portfolio.ensure_account()
+        await self.certification.start()
         await self.allocation.start()
         await self.strategy_orchestration.start()
         self._started = True
@@ -432,6 +452,24 @@ class Kernel:
                 'execution_allowed': False,
             },
             'adaptive_portfolio_allocator',
+        ))
+        return result
+
+    async def certification_status(self) -> dict[str, object]:
+        return await self.certification.status()
+
+    async def certification_evaluate(
+        self, payload: dict[str, object]
+    ) -> dict[str, object]:
+        result = await self.certification.evaluate(payload)
+        await self.event_bus.publish(Event(
+            'certification.evaluated',
+            {
+                'status': result['status'],
+                'passed': result['passed'],
+                'live_execution_allowed': False,
+            },
+            'cqo_certification',
         ))
         return result
 
