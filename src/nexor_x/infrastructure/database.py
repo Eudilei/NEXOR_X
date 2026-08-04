@@ -150,6 +150,16 @@ CREATE TABLE IF NOT EXISTS walk_forward_runs(
 CREATE INDEX IF NOT EXISTS idx_walk_forward_generated
 ON walk_forward_runs(generated_at DESC);
 
+CREATE TABLE IF NOT EXISTS counterfactual_runs(
+ run_id TEXT PRIMARY KEY, generated_at TEXT NOT NULL, status TEXT NOT NULL,
+ observation_count INTEGER NOT NULL, scenario_count INTEGER NOT NULL,
+ best_scenario TEXT, baseline_realized_r REAL NOT NULL, baseline_profit_factor REAL,
+ best_net_benefit_r REAL, reason TEXT NOT NULL, symbol TEXT, decision TEXT,
+ regime TEXT, scenarios_json TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_counterfactual_generated
+ON counterfactual_runs(generated_at DESC);
+
 """
 
 class DatabaseService(BaseService):

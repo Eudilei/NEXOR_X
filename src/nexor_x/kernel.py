@@ -21,6 +21,7 @@ from nexor_x.quant import QuantBrain
 from nexor_x.laboratory import LaboratoryService
 from nexor_x.laboratory.monte_carlo import MonteCarloConfig
 from nexor_x.laboratory.walk_forward import WalkForwardConfig
+from nexor_x.laboratory.counterfactual import CounterfactualConfig
 from nexor_x.portfolio import PortfolioService
 from nexor_x.risk import PreTradeGate
 from nexor_x.execution import PaperExecutionService
@@ -340,6 +341,30 @@ class Kernel:
 
     async def walk_forward_status(self) -> dict[str, object]:
         return await self.laboratory.walk_forward_status()
+
+    async def run_counterfactual(
+        self, *, symbol: str | None = None, decision: str | None = None,
+        regime: str | None = None, edge_thresholds: tuple[float, ...] | None = None,
+    ) -> dict[str, object]:
+        config = CounterfactualConfig(
+            minimum_observations=self.settings.counterfactual_minimum_observations,
+            minimum_kept_observations=self.settings.counterfactual_minimum_kept_observations,
+            edge_thresholds=edge_thresholds or self.settings.counterfactual_edge_threshold_list,
+        )
+        result = await self.laboratory.run_counterfactual(
+            config, symbol=symbol, decision=decision, regime=regime
+        )
+        await self.event_bus.publish(Event(
+            "laboratory.counterfactual",
+            {"run_id": result["run_id"], "status": result["status"],
+             "best_scenario": result["best_scenario"], "causal_claim": False,
+             "execution_allowed": False},
+            "counterfactual",
+        ))
+        return result
+
+    async def counterfactual_status(self) -> dict[str, object]:
+        return await self.laboratory.counterfactual_status()
 
     async def portfolio_status(self) -> dict[str, object]:
         return await self.portfolio.snapshot()

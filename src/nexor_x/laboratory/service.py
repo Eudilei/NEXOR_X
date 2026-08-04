@@ -11,6 +11,7 @@ from .edge_discovery import EdgeDiscoveryEngine
 from .validator import WalkForwardValidator
 from .monte_carlo import MonteCarloConfig, MonteCarloEngine
 from .walk_forward import ContinuousWalkForwardEngine, WalkForwardConfig
+from .counterfactual import CounterfactualConfig, CounterfactualEngine
 
 
 class LaboratoryService:
@@ -31,6 +32,7 @@ class LaboratoryService:
         )
         self.monte_carlo = MonteCarloEngine(database, minimum_observations=monte_carlo_minimum_observations)
         self.walk_forward_engine = ContinuousWalkForwardEngine(database, self.calibration)
+        self.counterfactual = CounterfactualEngine(database)
         self.edge_discovery = EdgeDiscoveryEngine(
             database, minimum_samples=minimum_samples,
             minimum_expected_r=minimum_expected_r,
@@ -103,6 +105,18 @@ class LaboratoryService:
 
     async def walk_forward_status(self) -> dict[str, object]:
         return await self.walk_forward_engine.latest()
+
+    async def run_counterfactual(
+        self, config: CounterfactualConfig, *, symbol: str | None = None,
+        decision: str | None = None, regime: str | None = None,
+    ) -> dict[str, object]:
+        report = await self.counterfactual.run(
+            await self.observations(), config, symbol=symbol, decision=decision, regime=regime
+        )
+        return report.to_dict()
+
+    async def counterfactual_status(self) -> dict[str, object]:
+        return await self.counterfactual.latest()
 
     async def edge_status(self) -> dict[str, object]:
         return await self.edge_discovery.latest()

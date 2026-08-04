@@ -71,6 +71,13 @@ class Settings(BaseSettings):
     walk_forward_minimum_test_observations: int = Field(default=20, ge=5, le=100000)
     walk_forward_minimum_pass_ratio: float = Field(default=0.60, gt=0, le=1)
     walk_forward_minimum_profit_factor: float = Field(default=1.05, ge=0, le=100)
+    counterfactual_minimum_observations: int = Field(default=60, ge=20, le=100000)
+    counterfactual_minimum_kept_observations: int = Field(default=20, ge=5, le=100000)
+    counterfactual_edge_thresholds: str = "0.10,0.20,0.30,0.40,0.50"
+
+    @property
+    def counterfactual_edge_threshold_list(self) -> tuple[float, ...]:
+        return tuple(float(item.strip()) for item in self.counterfactual_edge_thresholds.split(",") if item.strip())
 
     @property
     def scanner_symbol_list(self) -> tuple[str, ...]:
@@ -109,6 +116,7 @@ def _yaml_values(path: Path = Path("config/settings.yaml")) -> dict[str, Any]:
     probability = raw.get("probability_calibration", {})
     monte_carlo = raw.get("monte_carlo", {})
     walk_forward = raw.get("walk_forward", {})
+    counterfactual = raw.get("counterfactual", {})
     return {
         "nexor_mode": system.get("mode", "PAPER"),
         "nexor_host": system.get("host", "127.0.0.1"),
@@ -164,6 +172,9 @@ def _yaml_values(path: Path = Path("config/settings.yaml")) -> dict[str, Any]:
         "walk_forward_minimum_test_observations": walk_forward.get("minimum_test_observations", 20),
         "walk_forward_minimum_pass_ratio": walk_forward.get("minimum_pass_ratio", 0.60),
         "walk_forward_minimum_profit_factor": walk_forward.get("minimum_profit_factor", 1.05),
+        "counterfactual_minimum_observations": counterfactual.get("minimum_observations", 60),
+        "counterfactual_minimum_kept_observations": counterfactual.get("minimum_kept_observations", 20),
+        "counterfactual_edge_thresholds": counterfactual.get("edge_thresholds", "0.10,0.20,0.30,0.40,0.50"),
     }
 
 
@@ -224,6 +235,9 @@ def _environment_overrides() -> dict[str, Any]:
         "WALK_FORWARD_MINIMUM_TEST_OBSERVATIONS": "walk_forward_minimum_test_observations",
         "WALK_FORWARD_MINIMUM_PASS_RATIO": "walk_forward_minimum_pass_ratio",
         "WALK_FORWARD_MINIMUM_PROFIT_FACTOR": "walk_forward_minimum_profit_factor",
+        "COUNTERFACTUAL_MINIMUM_OBSERVATIONS": "counterfactual_minimum_observations",
+        "COUNTERFACTUAL_MINIMUM_KEPT_OBSERVATIONS": "counterfactual_minimum_kept_observations",
+        "COUNTERFACTUAL_EDGE_THRESHOLDS": "counterfactual_edge_thresholds",
     }
     values: dict[str, Any] = {}
     for env_name, field_name in mapping.items():

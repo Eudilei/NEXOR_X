@@ -84,3 +84,7 @@ Compara Platt Scaling e calibração isotônica em holdout temporal e retorna pr
 ## Sprint 15 — Walk-Forward Contínuo
 
 Validação temporal persistente por janelas expansivas, com filtros contextuais e endpoints `/api/walk-forward/status` e `/api/walk-forward/run`. Aprovação não autoriza execução nem LIVE.
+
+
+## Sprint 16
+Counterfactual Engine para comparar filtros historicos sem alegar causalidade.
