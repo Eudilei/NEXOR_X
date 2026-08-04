@@ -281,6 +281,12 @@ def create_app(kernel: Any) -> FastAPI:
         except (KeyError, TypeError, ValueError) as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
+    @app.get("/api/exchange/live-readiness")
+    async def exchange_live_readiness(
+        _: None = Depends(require_admin),
+    ) -> dict[str, Any]:
+        return await kernel.binance_live_readiness()
+
     @app.get("/api/portfolio/status")
     async def portfolio_status() -> dict[str, Any]:
         return await kernel.portfolio_status()

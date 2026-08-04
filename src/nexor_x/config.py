@@ -25,6 +25,13 @@ class Settings(BaseSettings):
     certification_minimum_recent_profit_factor: float = 1.15
     certification_minimum_recent_expected_r: float = 0.01
 
+    binance_live_base_url: str = "https://fapi.binance.com"
+    binance_testnet_base_url: str = "https://testnet.binancefuture.com"
+    binance_live_timeout_seconds: float = 10.0
+    binance_recv_window_ms: int = 5000
+    binance_maximum_time_drift_ms: int = 1000
+    binance_use_testnet: bool = True
+
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", extra="ignore", case_sensitive=False
     )

@@ -106,3 +106,11 @@ certification:
   minimum_days_in_paper: 30
   minimum_recent_profit_factor: 1.15
   minimum_recent_expected_r: 0.01
+
+binance_live:
+  base_url: https://fapi.binance.com
+  testnet_url: https://testnet.binancefuture.com
+  timeout_seconds: 10.0
+  recv_window_ms: 5000
+  maximum_time_drift_ms: 1000
+  use_testnet: true

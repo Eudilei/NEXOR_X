@@ -28,6 +28,11 @@ from nexor_x.execution import PaperExecutionService
 from nexor_x.scanner import MarketScannerService
 from nexor_x.position import PositionManagementService
 from nexor_x.position.service import PositionPolicy
+from nexor_x.exchange import (
+    BinanceCredentials,
+    BinanceLiveConnector,
+    BinanceLivePolicy,
+)
 from nexor_x.certification import CertificationPolicy, CertificationService
 from nexor_x.allocation import AllocationService, AllocationPolicy
 from nexor_x.strategy import StrategyOrchestrationService
@@ -121,6 +126,20 @@ class Kernel:
                 minimum_recent_expected_r=settings.certification_minimum_recent_expected_r,
             ),
         )
+        self.binance_live = BinanceLiveConnector(
+            BinanceCredentials(
+                api_key=settings.binance_api_key,
+                api_secret=settings.binance_api_secret,
+            ),
+            BinanceLivePolicy(
+                base_url=settings.binance_live_base_url,
+                testnet_url=settings.binance_testnet_base_url,
+                timeout_seconds=settings.binance_live_timeout_seconds,
+                recv_window_ms=settings.binance_recv_window_ms,
+                maximum_time_drift_ms=settings.binance_maximum_time_drift_ms,
+                use_testnet=settings.binance_use_testnet,
+            ),
+        )
         self.scanner = MarketScannerService(
             self.database,
             self.quant_assessment,
@@ -175,6 +194,7 @@ class Kernel:
                 self._log.error("service_start_failed service=%s error=%s", service.name, exc)
         await self.watchdog.start()
         await self.portfolio.ensure_account()
+        await self.binance_live.start()
         await self.certification.start()
         await self.allocation.start()
         await self.strategy_orchestration.start()
@@ -470,6 +490,20 @@ class Kernel:
                 'live_execution_allowed': False,
             },
             'cqo_certification',
+        ))
+        return result
+
+    async def binance_live_readiness(self) -> dict[str, object]:
+        report = await self.binance_live.readiness()
+        result = report.to_dict()
+        await self.event_bus.publish(Event(
+            'exchange.live_readiness',
+            {
+                'status': result['status'],
+                'testnet': result['testnet'],
+                'live_order_permission': False,
+            },
+            'binance_live_connector',
         ))
         return result
 
