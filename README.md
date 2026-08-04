@@ -88,3 +88,11 @@ Validação temporal persistente por janelas expansivas, com filtros contextuais
 
 ## Sprint 16
 Counterfactual Engine para comparar filtros historicos sem alegar causalidade.
+
+
+## Sprint 18 — Strategy Orchestrator integrado
+
+- registro persistente de estrategias;
+- ranking administrativo por contexto;
+- endpoints `/api/strategies/status` e `/api/strategies/rank`;
+- selecao permanece observacional e nao libera PAPER automatico ou LIVE.

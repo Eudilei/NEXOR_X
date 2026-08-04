@@ -28,6 +28,7 @@ from nexor_x.execution import PaperExecutionService
 from nexor_x.scanner import MarketScannerService
 from nexor_x.position import PositionManagementService
 from nexor_x.position.service import PositionPolicy
+from nexor_x.strategy import StrategyOrchestrationService
 
 
 class Kernel:
@@ -81,6 +82,7 @@ class Kernel:
                 trailing_distance_r=settings.position_trailing_distance_r,
             )
         )
+        self.strategy_orchestration = StrategyOrchestrationService(self.database)
         self.scanner = MarketScannerService(
             self.database,
             self.quant_assessment,
@@ -135,6 +137,7 @@ class Kernel:
                 self._log.error("service_start_failed service=%s error=%s", service.name, exc)
         await self.watchdog.start()
         await self.portfolio.ensure_account()
+        await self.strategy_orchestration.start()
         self._started = True
         await self.event_bus.publish(
             Event("system.started", {"mode": self.settings.nexor_mode.value}, "kernel")
@@ -366,6 +369,32 @@ class Kernel:
     async def counterfactual_status(self) -> dict[str, object]:
         return await self.laboratory.counterfactual_status()
 
+    async def strategy_status(self) -> dict[str, object]:
+        return await self.strategy_orchestration.status()
+
+    async def strategy_rank(self, payload: dict[str, object]) -> dict[str, object]:
+        result = await self.strategy_orchestration.rank(
+            symbol=str(payload['symbol']),
+            regime=str(payload['regime']),
+            decision=str(payload['decision']),
+            metrics=list(payload.get('metrics') or []),
+            current_strategy_id=(
+                str(payload['current_strategy_id'])
+                if payload.get('current_strategy_id') else None
+            ),
+        )
+        await self.event_bus.publish(Event(
+            'strategy.selection',
+            {
+                'symbol': result['symbol'],
+                'selected_strategy_id': result['selected_strategy_id'],
+                'status': result['status'],
+                'execution_allowed': False,
+            },
+            'meta_strategy_orchestrator',
+        ))
+        return result
+
     async def portfolio_status(self) -> dict[str, object]:
         return await self.portfolio.snapshot()
 
@@ -448,7 +477,7 @@ class Kernel:
             self._log.warning("scheduled_scan_failed error=%s", exc)
 
     async def _persist_event(self, event: Event) -> None:
-        if event.topic.startswith(("system.", "market.", "quant.", "laboratory.", "risk.", "execution.", "position.")):
+        if event.topic.startswith(("system.", "market.", "quant.", "laboratory.", "risk.", "execution.", "position.", "strategy.")):
             await self.database.execute(
                 """INSERT OR IGNORE INTO system_events
                 (event_id, topic, source, payload_json, occurred_at) VALUES (?, ?, ?, ?, ?)""",

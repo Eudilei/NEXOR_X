@@ -43,6 +43,24 @@ class CounterfactualRequest(BaseModel):
     edge_thresholds: list[float] | None = Field(default=None, min_length=1, max_length=20)
 
 
+class StrategyMetricRequest(BaseModel):
+    strategy_id: str = Field(min_length=2, max_length=80)
+    sample_count: int = Field(ge=1, le=10000000)
+    profit_factor: float = Field(ge=0, le=1000)
+    expected_r: float = Field(ge=-100, le=100)
+    win_rate: float = Field(ge=0, le=1)
+    max_drawdown_r: float = Field(ge=0, le=100000)
+    brier_score: float | None = Field(default=None, ge=0, le=1)
+    walk_forward_pass_ratio: float | None = Field(default=None, ge=0, le=1)
+    monte_carlo_ruin_probability: float | None = Field(default=None, ge=0, le=1)
+
+class StrategyRankRequest(BaseModel):
+    symbol: str = Field(min_length=3, max_length=30)
+    regime: str = Field(min_length=3, max_length=40)
+    decision: str = Field(min_length=3, max_length=40)
+    current_strategy_id: str | None = Field(default=None, max_length=80)
+    metrics: list[StrategyMetricRequest] = Field(min_length=1, max_length=100)
+
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
 
@@ -185,6 +203,19 @@ def create_app(kernel: Any) -> FastAPI:
                 edge_thresholds=tuple(body.edge_thresholds) if body.edge_thresholds else None,
             )
         except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.get("/api/strategies/status")
+    async def strategy_status() -> dict[str, Any]:
+        return await kernel.strategy_status()
+
+    @app.post("/api/strategies/rank")
+    async def strategy_rank(
+        body: StrategyRankRequest, _: None = Depends(require_admin)
+    ) -> dict[str, Any]:
+        try:
+            return await kernel.strategy_rank(body.model_dump())
+        except (KeyError, TypeError, ValueError) as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     @app.get("/api/portfolio/status")

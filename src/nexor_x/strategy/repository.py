@@ -4,7 +4,12 @@ import json
 from datetime import UTC, datetime
 from typing import Any
 
-from .models import StrategyDefinition, StrategyMetric, StrategySelection, StrategyStatus
+from .models import (
+    StrategyDefinition,
+    StrategyMetric,
+    StrategySelection,
+    StrategyStatus,
+)
 
 
 class StrategyRepository:
@@ -49,6 +54,12 @@ class StrategyRepository:
         )
         await self.database.execute(
             """
+            CREATE INDEX IF NOT EXISTS idx_strategy_metrics_context
+            ON strategy_metrics(strategy_id, regime, decision, updated_at DESC)
+            """
+        )
+        await self.database.execute(
+            """
             CREATE TABLE IF NOT EXISTS strategy_selections (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 symbol TEXT NOT NULL,
@@ -59,6 +70,12 @@ class StrategyRepository:
                 payload_json TEXT NOT NULL,
                 created_at TEXT NOT NULL
             )
+            """
+        )
+        await self.database.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_strategy_selections_created
+            ON strategy_selections(created_at DESC)
             """
         )
 
@@ -90,6 +107,29 @@ class StrategyRepository:
                 datetime.now(UTC).isoformat(),
             ),
         )
+
+    async def list_definitions(self) -> list[StrategyDefinition]:
+        await self.ensure_schema()
+        rows = await self.database.fetchall(
+            """
+            SELECT strategy_id, name, supported_regimes_json,
+                   supported_directions_json, status, version, description
+            FROM strategy_registry
+            ORDER BY strategy_id
+            """
+        )
+        return [
+            StrategyDefinition(
+                strategy_id=str(row[0]),
+                name=str(row[1]),
+                supported_regimes=tuple(json.loads(str(row[2]))),
+                supported_directions=tuple(json.loads(str(row[3]))),
+                status=StrategyStatus(str(row[4])),
+                version=str(row[5]),
+                description=str(row[6]),
+            )
+            for row in rows
+        ]
 
     async def save_metric(self, metric: StrategyMetric) -> None:
         await self.ensure_schema()
@@ -136,3 +176,17 @@ class StrategyRepository:
                 selection.created_at.isoformat(),
             ),
         )
+
+    async def latest_selection(self) -> dict[str, Any] | None:
+        await self.ensure_schema()
+        rows = await self.database.fetchall(
+            """
+            SELECT payload_json
+            FROM strategy_selections
+            ORDER BY id DESC
+            LIMIT 1
+            """
+        )
+        if not rows:
+            return None
+        return dict(json.loads(str(rows[0][0])))
