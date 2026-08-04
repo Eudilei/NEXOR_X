@@ -61,6 +61,23 @@ class StrategyRankRequest(BaseModel):
     current_strategy_id: str | None = Field(default=None, max_length=80)
     metrics: list[StrategyMetricRequest] = Field(min_length=1, max_length=100)
 
+class AllocationCandidateRequest(BaseModel):
+    strategy_id: str = Field(min_length=2, max_length=80)
+    symbol: str = Field(min_length=3, max_length=30)
+    direction: str = Field(min_length=3, max_length=40)
+    score: float = Field(ge=-100, le=100)
+    expected_r: float = Field(ge=-100, le=100)
+    profit_factor: float = Field(ge=0, le=1000)
+    walk_forward_pass_ratio: float = Field(ge=0, le=1)
+    monte_carlo_ruin_probability: float = Field(ge=0, le=1)
+    max_drawdown_r: float = Field(ge=0, le=100000)
+    current_drawdown_pct: float = Field(default=0, ge=0, le=100)
+    correlation_group: str = Field(default='DEFAULT', max_length=80)
+
+class AllocationPlanRequest(BaseModel):
+    portfolio_drawdown_pct: float = Field(ge=0, le=100)
+    candidates: list[AllocationCandidateRequest] = Field(min_length=1, max_length=100)
+
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
 
@@ -215,6 +232,19 @@ def create_app(kernel: Any) -> FastAPI:
     ) -> dict[str, Any]:
         try:
             return await kernel.strategy_rank(body.model_dump())
+        except (KeyError, TypeError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.get("/api/allocation/status")
+    async def allocation_status() -> dict[str, Any]:
+        return await kernel.allocation_status()
+
+    @app.post("/api/allocation/plan")
+    async def allocation_plan(
+        body: AllocationPlanRequest, _: None = Depends(require_admin)
+    ) -> dict[str, Any]:
+        try:
+            return await kernel.allocation_plan(body.model_dump())
         except (KeyError, TypeError, ValueError) as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 

@@ -28,6 +28,7 @@ from nexor_x.execution import PaperExecutionService
 from nexor_x.scanner import MarketScannerService
 from nexor_x.position import PositionManagementService
 from nexor_x.position.service import PositionPolicy
+from nexor_x.allocation import AllocationService, AllocationPolicy
 from nexor_x.strategy import StrategyOrchestrationService
 
 
@@ -83,6 +84,24 @@ class Kernel:
             )
         )
         self.strategy_orchestration = StrategyOrchestrationService(self.database)
+        self.allocation = AllocationService(
+            self.database,
+            AllocationPolicy(
+                maximum_candidates=settings.allocation_maximum_candidates,
+                maximum_weight_per_candidate=settings.allocation_maximum_weight_per_candidate,
+                maximum_weight_per_correlation_group=settings.allocation_maximum_weight_per_correlation_group,
+                minimum_score=settings.allocation_minimum_score,
+                minimum_expected_r=settings.minimum_expected_r,
+                minimum_profit_factor=settings.minimum_profit_factor,
+                minimum_walk_forward_pass_ratio=settings.walk_forward_minimum_pass_ratio,
+                maximum_ruin_probability=settings.allocation_maximum_ruin_probability,
+                maximum_candidate_drawdown_r=settings.allocation_maximum_candidate_drawdown_r,
+                maximum_portfolio_risk_pct=settings.risk_per_trade_pct,
+                recovery_drawdown_trigger_pct=settings.allocation_recovery_drawdown_trigger_pct,
+                hard_stop_drawdown_pct=settings.hard_stop_drawdown_pct,
+                recovery_risk_multiplier=settings.allocation_recovery_risk_multiplier,
+            ),
+        )
         self.scanner = MarketScannerService(
             self.database,
             self.quant_assessment,
@@ -137,6 +156,7 @@ class Kernel:
                 self._log.error("service_start_failed service=%s error=%s", service.name, exc)
         await self.watchdog.start()
         await self.portfolio.ensure_account()
+        await self.allocation.start()
         await self.strategy_orchestration.start()
         self._started = True
         await self.event_bus.publish(
@@ -392,6 +412,26 @@ class Kernel:
                 'execution_allowed': False,
             },
             'meta_strategy_orchestrator',
+        ))
+        return result
+
+    async def allocation_status(self) -> dict[str, object]:
+        return await self.allocation.status()
+
+    async def allocation_plan(self, payload: dict[str, object]) -> dict[str, object]:
+        result = await self.allocation.plan(
+            portfolio_drawdown_pct=float(payload['portfolio_drawdown_pct']),
+            candidates=list(payload.get('candidates') or []),
+        )
+        await self.event_bus.publish(Event(
+            'portfolio.allocation_plan',
+            {
+                'status': result['status'],
+                'total_weight': result['total_weight'],
+                'total_risk_budget_pct': result['total_risk_budget_pct'],
+                'execution_allowed': False,
+            },
+            'adaptive_portfolio_allocator',
         ))
         return result
 

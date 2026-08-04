@@ -74,6 +74,14 @@ class Settings(BaseSettings):
     counterfactual_minimum_observations: int = Field(default=60, ge=20, le=100000)
     counterfactual_minimum_kept_observations: int = Field(default=20, ge=5, le=100000)
     counterfactual_edge_thresholds: str = "0.10,0.20,0.30,0.40,0.50"
+    allocation_maximum_candidates: int = 5
+    allocation_maximum_weight_per_candidate: float = 0.35
+    allocation_maximum_weight_per_correlation_group: float = 0.55
+    allocation_minimum_score: float = 0.20
+    allocation_maximum_ruin_probability: float = 0.05
+    allocation_maximum_candidate_drawdown_r: float = 8.0
+    allocation_recovery_drawdown_trigger_pct: float = 10.0
+    allocation_recovery_risk_multiplier: float = 0.35
 
     @property
     def counterfactual_edge_threshold_list(self) -> tuple[float, ...]:

@@ -83,3 +83,13 @@ counterfactual:
   minimum_observations: 60
   minimum_kept_observations: 20
   edge_thresholds: 0.10,0.20,0.30,0.40,0.50
+
+allocation:
+  maximum_candidates: 5
+  maximum_weight_per_candidate: 0.35
+  maximum_weight_per_correlation_group: 0.55
+  minimum_score: 0.20
+  maximum_ruin_probability: 0.05
+  maximum_candidate_drawdown_r: 8.0
+  recovery_drawdown_trigger_pct: 10.0
+  recovery_risk_multiplier: 0.35
