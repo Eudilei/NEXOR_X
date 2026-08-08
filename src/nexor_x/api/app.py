@@ -98,6 +98,17 @@ class CertificationRequest(BaseModel):
     live_connector_tested: bool
     manual_owner_approval: bool = False
 
+class TestnetOrderCreateRequest(BaseModel):
+    strategy_id: str = Field(min_length=2, max_length=80)
+    signal_id: str = Field(min_length=2, max_length=120)
+    symbol: str = Field(min_length=3, max_length=30)
+    side: str = Field(pattern='^(BUY|SELL)$')
+    order_type: str = Field(pattern='^(MARKET|LIMIT)$')
+    quantity: float = Field(gt=0)
+    price: float | None = Field(default=None, gt=0)
+    reduce_only: bool = False
+    client_order_id: str | None = Field(default=None, max_length=36)
+
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
 
@@ -286,6 +297,16 @@ def create_app(kernel: Any) -> FastAPI:
         _: None = Depends(require_admin),
     ) -> dict[str, Any]:
         return await kernel.binance_live_readiness()
+
+    @app.post("/api/exchange/testnet/orders")
+    async def create_testnet_order(
+        body: TestnetOrderCreateRequest,
+        _: None = Depends(require_admin),
+    ) -> dict[str, Any]:
+        try:
+            return await kernel.testnet_order_create(body.model_dump())
+        except (KeyError, TypeError, ValueError, RuntimeError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     @app.get("/api/portfolio/status")
     async def portfolio_status() -> dict[str, Any]:

@@ -148,6 +148,60 @@ class BinanceLiveConnector:
             live_order_permission=False,
         )
 
+    async def create_testnet_order(
+        self,
+        *,
+        symbol: str,
+        side: str,
+        order_type: str,
+        quantity: float,
+        price: float | None,
+        reduce_only: bool,
+        client_order_id: str,
+    ) -> dict[str, Any]:
+        if not self.policy.use_testnet:
+            raise RuntimeError('Order creation is restricted to TESTNET')
+        if not self.credentials.configured:
+            raise RuntimeError('Binance credentials are not configured')
+        params: dict[str, Any] = {
+            'symbol': symbol,
+            'side': side,
+            'type': order_type,
+            'quantity': quantity,
+            'reduceOnly': 'true' if reduce_only else 'false',
+            'newClientOrderId': client_order_id,
+        }
+        if price is not None:
+            params['price'] = price
+            params['timeInForce'] = 'GTC'
+        return await self._signed_post('/fapi/v1/order', params)
+
+    async def _signed_post(
+        self,
+        path: str,
+        params: dict[str, Any],
+    ) -> dict[str, Any]:
+        client = self._require_client()
+        timestamp = int(time.time() * 1000) + self._time_offset_ms
+        payload = {
+            **params,
+            'timestamp': timestamp,
+            'recvWindow': self.policy.recv_window_ms,
+        }
+        query = urlencode(payload)
+        signature = hmac.new(
+            self.credentials.api_secret.encode('utf-8'),
+            query.encode('utf-8'),
+            hashlib.sha256,
+        ).hexdigest()
+        headers = {'X-MBX-APIKEY': self.credentials.api_key}
+        response = await client.post(
+            f'{self.base_url}{path}?{query}&signature={signature}',
+            headers=headers,
+        )
+        response.raise_for_status()
+        return dict(response.json())
+
     async def _signed_get(
         self,
         path: str,

@@ -28,6 +28,12 @@ from nexor_x.execution import PaperExecutionService
 from nexor_x.scanner import MarketScannerService
 from nexor_x.position import PositionManagementService
 from nexor_x.position.service import PositionPolicy
+from nexor_x.orders import (
+    OrderSide,
+    OrderType,
+    TestnetOrderRequest,
+    TestnetOrderService,
+)
 from nexor_x.exchange import (
     BinanceCredentials,
     BinanceLiveConnector,
@@ -140,6 +146,10 @@ class Kernel:
                 use_testnet=settings.binance_use_testnet,
             ),
         )
+        self.testnet_orders = TestnetOrderService(
+            self.database,
+            self.binance_live,
+        )
         self.scanner = MarketScannerService(
             self.database,
             self.quant_assessment,
@@ -194,6 +204,7 @@ class Kernel:
                 self._log.error("service_start_failed service=%s error=%s", service.name, exc)
         await self.watchdog.start()
         await self.portfolio.ensure_account()
+        await self.testnet_orders.start()
         await self.binance_live.start()
         await self.certification.start()
         await self.allocation.start()
@@ -504,6 +515,38 @@ class Kernel:
                 'live_order_permission': False,
             },
             'binance_live_connector',
+        ))
+        return result
+
+    async def testnet_order_create(
+        self, payload: dict[str, object]
+    ) -> dict[str, object]:
+        request = TestnetOrderRequest(
+            symbol=str(payload['symbol']),
+            side=OrderSide(str(payload['side']).upper()),
+            order_type=OrderType(str(payload['order_type']).upper()),
+            quantity=float(payload['quantity']),
+            price=(None if payload.get('price') is None else float(payload['price'])),
+            reduce_only=bool(payload.get('reduce_only', False)),
+            client_order_id=(
+                None if not payload.get('client_order_id')
+                else str(payload['client_order_id'])
+            ),
+        )
+        result = await self.testnet_orders.create(
+            strategy_id=str(payload['strategy_id']),
+            signal_id=str(payload['signal_id']),
+            request=request,
+        )
+        await self.event_bus.publish(Event(
+            'order.testnet_submitted',
+            {
+                'symbol': result['request']['symbol'],
+                'status': result['status'],
+                'duplicate': result['duplicate'],
+                'live_order_sent': False,
+            },
+            'testnet_order_service',
         ))
         return result
 
