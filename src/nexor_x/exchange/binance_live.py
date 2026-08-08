@@ -148,6 +148,22 @@ class BinanceLiveConnector:
             live_order_permission=False,
         )
 
+    async def testnet_positions(self) -> list[dict[str, Any]]:
+        if not self.policy.use_testnet:
+            raise RuntimeError('Position query is restricted to TESTNET')
+        result = await self._signed_get('/fapi/v2/positionRisk', {})
+        if isinstance(result, dict):
+            return list(result.get('positions') or [])
+        return list(result)
+
+    async def testnet_open_orders(self) -> list[dict[str, Any]]:
+        if not self.policy.use_testnet:
+            raise RuntimeError('Open order query is restricted to TESTNET')
+        result = await self._signed_get('/fapi/v1/openOrders', {})
+        if isinstance(result, dict):
+            return list(result.get('orders') or [])
+        return list(result)
+
     async def get_testnet_order(
         self,
         *,
@@ -188,7 +204,7 @@ class BinanceLiveConnector:
         self,
         path: str,
         params: dict[str, Any],
-    ) -> dict[str, Any]:
+    ) -> Any:
         client = self._require_client()
         timestamp = int(time.time() * 1000) + self._time_offset_ms
         payload = {
@@ -288,7 +304,7 @@ class BinanceLiveConnector:
             headers=headers,
         )
         response.raise_for_status()
-        return dict(response.json())
+        return response.json()
 
     def _require_client(self) -> httpx.AsyncClient:
         if self._client is None:

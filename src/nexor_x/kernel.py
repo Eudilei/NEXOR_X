@@ -29,6 +29,7 @@ from nexor_x.execution import PaperExecutionService
 from nexor_x.scanner import MarketScannerService
 from nexor_x.position import PositionManagementService
 from nexor_x.position.service import PositionPolicy
+from nexor_x.recovery import RecoveryGuardService
 from nexor_x.orders import (
     OrderAuditRepository,
     TestnetOrderLifecycleService,
@@ -161,6 +162,10 @@ class Kernel:
             self.binance_live
         )
         self.order_audit = OrderAuditRepository(self.database)
+        self.recovery_guard = RecoveryGuardService(
+            self.database,
+            self.binance_live,
+        )
         self.scanner = MarketScannerService(
             self.database,
             self.quant_assessment,
@@ -215,6 +220,7 @@ class Kernel:
                 self._log.error("service_start_failed service=%s error=%s", service.name, exc)
         await self.watchdog.start()
         await self.portfolio.ensure_account()
+        await self.recovery_guard.start()
         await self.order_audit.start()
         await self.update_registry.start()
         await self.update_registry.register_runtime_version(
@@ -539,6 +545,10 @@ class Kernel:
     async def testnet_order_create(
         self, payload: dict[str, object]
     ) -> dict[str, object]:
+        if not await self.recovery_guard.allows_testnet_orders():
+            raise RuntimeError(
+                'TESTNET orders locked: run recovery reconciliation first'
+            )
         request = TestnetOrderRequest(
             symbol=str(payload['symbol']),
             side=OrderSide(str(payload['side']).upper()),
@@ -616,6 +626,23 @@ class Kernel:
             client_order_id=result['client_order_id'],
             exchange_order_id=result['exchange_order_id'],
         )
+        return result
+
+    async def recovery_status(self) -> dict[str, object]:
+        return await self.recovery_guard.status()
+
+    async def recovery_reconcile(self) -> dict[str, object]:
+        result = await self.recovery_guard.reconcile()
+        await self.event_bus.publish(Event(
+            'recovery.reconciled',
+            {
+                'status': result['status'],
+                'recovery_ok': result['recovery_ok'],
+                'issue_count': len(result['issues']),
+                'live_execution_allowed': False,
+            },
+            'recovery_guard',
+        ))
         return result
 
     async def portfolio_status(self) -> dict[str, object]:

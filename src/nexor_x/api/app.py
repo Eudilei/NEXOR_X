@@ -339,6 +339,21 @@ def create_app(kernel: Any) -> FastAPI:
         except (KeyError, TypeError, ValueError, RuntimeError) as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
+    @app.get("/api/recovery/status")
+    async def recovery_status(
+        _: None = Depends(require_admin),
+    ) -> dict[str, Any]:
+        return await kernel.recovery_status()
+
+    @app.post("/api/recovery/reconcile")
+    async def recovery_reconcile(
+        _: None = Depends(require_admin),
+    ) -> dict[str, Any]:
+        try:
+            return await kernel.recovery_reconcile()
+        except RuntimeError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+
     @app.get("/api/portfolio/status")
     async def portfolio_status() -> dict[str, Any]:
         return await kernel.portfolio_status()
