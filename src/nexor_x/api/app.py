@@ -308,6 +308,12 @@ def create_app(kernel: Any) -> FastAPI:
         except (KeyError, TypeError, ValueError, RuntimeError) as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
+    @app.get("/api/system/updates")
+    async def system_updates(
+        _: None = Depends(require_admin),
+    ) -> dict[str, Any]:
+        return await kernel.update_status()
+
     @app.get("/api/portfolio/status")
     async def portfolio_status() -> dict[str, Any]:
         return await kernel.portfolio_status()

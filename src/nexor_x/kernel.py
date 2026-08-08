@@ -4,6 +4,7 @@ import asyncio
 import json
 from datetime import UTC, datetime
 
+from nexor_x import __version__
 from nexor_x.ai.ollama import OllamaService
 from nexor_x.config import Settings
 from nexor_x.core.event_bus import EventBus
@@ -28,6 +29,7 @@ from nexor_x.execution import PaperExecutionService
 from nexor_x.scanner import MarketScannerService
 from nexor_x.position import PositionManagementService
 from nexor_x.position.service import PositionPolicy
+from nexor_x.update_engine import UpdateRegistryService
 from nexor_x.orders import (
     OrderSide,
     OrderType,
@@ -150,6 +152,7 @@ class Kernel:
             self.database,
             self.binance_live,
         )
+        self.update_registry = UpdateRegistryService(self.database)
         self.scanner = MarketScannerService(
             self.database,
             self.quant_assessment,
@@ -204,6 +207,12 @@ class Kernel:
                 self._log.error("service_start_failed service=%s error=%s", service.name, exc)
         await self.watchdog.start()
         await self.portfolio.ensure_account()
+        await self.update_registry.start()
+        await self.update_registry.register_runtime_version(
+            version=__version__,
+            update_id='23',
+            source='runtime_startup',
+        )
         await self.testnet_orders.start()
         await self.binance_live.start()
         await self.certification.start()
@@ -549,6 +558,9 @@ class Kernel:
             'testnet_order_service',
         ))
         return result
+
+    async def update_status(self) -> dict[str, object]:
+        return await self.update_registry.status()
 
     async def portfolio_status(self) -> dict[str, object]:
         return await self.portfolio.snapshot()
