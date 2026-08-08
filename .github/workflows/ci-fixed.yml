@@ -1,0 +1,58 @@
+name: NEXOR X CI
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "NEXOR_X_UPDATE_*.zip"
+
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install project
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python -m pip install --upgrade pip
+
+          if python -m pip install -e ".[dev]"; then
+            echo "Installed with dev dependencies."
+          else
+            python -m pip install -e .
+            python -m pip install pytest pytest-cov ruff
+          fi
+
+      - name: Compile Python
+        run: python -m compileall -q src tests
+
+      - name: Critical lint
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruff check src/nexor_x tests \
+            --select E9,F63,F7,F82 \
+            --exclude 'tools'
+
+      - name: Tests
+        run: python -m pytest -q --cov=src/nexor_x --cov-report=term-missing
