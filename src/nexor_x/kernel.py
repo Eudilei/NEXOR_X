@@ -29,6 +29,7 @@ from nexor_x.execution import PaperExecutionService
 from nexor_x.scanner import MarketScannerService
 from nexor_x.position import PositionManagementService
 from nexor_x.position.service import PositionPolicy
+from nexor_x.supervisor import OperationalSupervisorService
 from nexor_x.recovery import RecoveryGuardService
 from nexor_x.orders import (
     OrderAuditRepository,
@@ -166,6 +167,7 @@ class Kernel:
             self.database,
             self.binance_live,
         )
+        self.operational_supervisor = OperationalSupervisorService(self.database)
         self.scanner = MarketScannerService(
             self.database,
             self.quant_assessment,
@@ -220,6 +222,7 @@ class Kernel:
                 self._log.error("service_start_failed service=%s error=%s", service.name, exc)
         await self.watchdog.start()
         await self.portfolio.ensure_account()
+        await self.operational_supervisor.start()
         await self.recovery_guard.start()
         await self.order_audit.start()
         await self.update_registry.start()
@@ -642,6 +645,27 @@ class Kernel:
                 'live_execution_allowed': False,
             },
             'recovery_guard',
+        ))
+        return result
+
+    async def operational_supervisor_status(
+        self,
+    ) -> dict[str, object]:
+        return await self.operational_supervisor.status()
+
+    async def operational_supervisor_evaluate(
+        self, payload: dict[str, object]
+    ) -> dict[str, object]:
+        result = await self.operational_supervisor.evaluate(payload)
+        await self.event_bus.publish(Event(
+            'supervisor.evaluated',
+            {
+                'status': result['status'],
+                'paper_allowed': result['paper_allowed'],
+                'testnet_allowed': result['testnet_allowed'],
+                'live_allowed': False,
+            },
+            'operational_supervisor',
         ))
         return result
 

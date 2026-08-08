@@ -114,6 +114,17 @@ class TestnetOrderLookupRequest(BaseModel):
     client_order_id: str | None = Field(default=None, max_length=36)
     exchange_order_id: str | None = Field(default=None, max_length=64)
 
+class OperationalSupervisorRequest(BaseModel):
+    mode: str = Field(default='PAPER', max_length=20)
+    recovery_ok: bool
+    exchange_ready: bool
+    certification_passed: bool
+    live_connector_tested: bool
+    data_freshness_ok: bool
+    hard_stop_active: bool
+    critical_test_failures: int = Field(ge=0, le=1000000)
+    operational_incidents: int = Field(ge=0, le=1000000)
+
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
 
@@ -353,6 +364,21 @@ def create_app(kernel: Any) -> FastAPI:
             return await kernel.recovery_reconcile()
         except RuntimeError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    @app.get("/api/supervisor/status")
+    async def operational_supervisor_status(
+        _: None = Depends(require_admin),
+    ) -> dict[str, Any]:
+        return await kernel.operational_supervisor_status()
+
+    @app.post("/api/supervisor/evaluate")
+    async def operational_supervisor_evaluate(
+        body: OperationalSupervisorRequest,
+        _: None = Depends(require_admin),
+    ) -> dict[str, Any]:
+        return await kernel.operational_supervisor_evaluate(
+            body.model_dump()
+        )
 
     @app.get("/api/portfolio/status")
     async def portfolio_status() -> dict[str, Any]:
