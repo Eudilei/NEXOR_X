@@ -1,0 +1,293 @@
+name: NEXOR X Auto Update
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "NEXOR_X_UPDATE_*.zip"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nexor-x-auto-update-main
+  cancel-in-progress: false
+
+jobs:
+  apply-update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Locate update ZIP
+        id: locate
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mapfile -t updates < <(
+            find . -maxdepth 1 -type f \
+              -name 'NEXOR_X_UPDATE_*.zip' \
+              -printf '%f\n' | sort
+          )
+
+          if [ "${#updates[@]}" -eq 0 ]; then
+            echo "No update ZIP found."
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "${#updates[@]}" -gt 1 ]; then
+            echo "::error::More than one update ZIP exists. Upload only one at a time."
+            printf '%s\n' "${updates[@]}"
+            exit 1
+          fi
+
+          echo "found=true" >> "$GITHUB_OUTPUT"
+          echo "zip=${updates[0]}" >> "$GITHUB_OUTPUT"
+          echo "Update package: ${updates[0]}"
+
+      - name: Validate update package
+        if: steps.locate.outputs.found == 'true'
+        env:
+          UPDATE_ZIP: ${{ steps.locate.outputs.zip }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python - <<'PY'
+          from pathlib import Path, PurePosixPath
+          import json
+          import os
+          import zipfile
+
+          zip_path = Path(os.environ["UPDATE_ZIP"])
+          if not zip_path.exists():
+              raise SystemExit(f"Update ZIP not found: {zip_path}")
+
+          max_uncompressed = 100 * 1024 * 1024
+          total = 0
+
+          with zipfile.ZipFile(zip_path) as zf:
+              names = zf.namelist()
+              if not names:
+                  raise SystemExit("Update ZIP is empty.")
+
+              for info in zf.infolist():
+                  total += info.file_size
+                  if total > max_uncompressed:
+                      raise SystemExit("Update ZIP exceeds 100 MB uncompressed.")
+
+                  name = info.filename.replace("\\", "/")
+                  p = PurePosixPath(name)
+
+                  if p.is_absolute() or ".." in p.parts:
+                      raise SystemExit(f"Unsafe path in ZIP: {name}")
+
+                  blocked = {
+                      ".git",
+                      ".env",
+                      ".venv",
+                      "__pycache__",
+                      "node_modules",
+                  }
+                  if any(part in blocked for part in p.parts):
+                      raise SystemExit(f"Blocked path in ZIP: {name}")
+
+              manifests = [n for n in names if n.endswith("update_manifest.json")]
+              if len(manifests) != 1:
+                  raise SystemExit(
+                      "ZIP must contain exactly one update_manifest.json."
+                  )
+
+              manifest = json.loads(
+                  zf.read(manifests[0]).decode("utf-8")
+              )
+
+              required = {"update_id", "version", "payload_dir"}
+              missing = required - set(manifest)
+              if missing:
+                  raise SystemExit(
+                      f"Manifest missing fields: {sorted(missing)}"
+                  )
+
+              if manifest["payload_dir"].strip("/\\") != "payload":
+                  raise SystemExit("payload_dir must be 'payload'.")
+
+              print("Package validation OK")
+              print(json.dumps(manifest, indent=2, ensure_ascii=False))
+          PY
+
+      - name: Extract update
+        if: steps.locate.outputs.found == 'true'
+        env:
+          UPDATE_ZIP: ${{ steps.locate.outputs.zip }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          rm -rf .nexor_update_tmp
+          mkdir -p .nexor_update_tmp
+          unzip -q "$UPDATE_ZIP" -d .nexor_update_tmp
+
+          ROOT_DIR="$(
+            find .nexor_update_tmp \
+              -type f \
+              -name update_manifest.json \
+              -printf '%h\n' \
+              | head -n1
+          )"
+
+          if [ -z "$ROOT_DIR" ]; then
+            echo "::error::update_manifest.json not found after extraction."
+            exit 1
+          fi
+
+          echo "$ROOT_DIR" > .nexor_update_root
+
+      - name: Apply payload
+        if: steps.locate.outputs.found == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ROOT_DIR="$(cat .nexor_update_root)"
+
+          if [ ! -d "$ROOT_DIR/payload" ]; then
+            echo "::error::payload directory is missing."
+            exit 1
+          fi
+
+          rsync -a \
+            --exclude='.git/' \
+            --exclude='.env' \
+            --exclude='.venv/' \
+            --exclude='__pycache__/' \
+            --exclude='*.pyc' \
+            --exclude='*.pyo' \
+            --exclude='*.db-shm' \
+            --exclude='*.db-wal' \
+            --exclude='*.egg-info/' \
+            "$ROOT_DIR/payload/" ./
+
+      - name: Run optional update migration
+        if: steps.locate.outputs.found == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ROOT_DIR="$(cat .nexor_update_root)"
+
+          if [ -f "$ROOT_DIR/apply_update.py" ]; then
+            echo "Running apply_update.py"
+            python "$ROOT_DIR/apply_update.py"
+          else
+            echo "No apply_update.py supplied."
+          fi
+
+      - name: Install project
+        if: steps.locate.outputs.found == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python -m pip install --upgrade pip
+
+          if python -m pip install -e ".[dev]"; then
+            echo "Installed with dev dependencies."
+          else
+            echo "Dev extra unavailable; using fallback."
+            python -m pip install -e .
+            python -m pip install pytest pytest-cov ruff
+          fi
+
+      - name: Compile Python
+        if: steps.locate.outputs.found == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -d tools ]; then
+            python -m compileall -q src tests tools
+          else
+            python -m compileall -q src tests
+          fi
+
+      - name: Ruff
+        if: steps.locate.outputs.found == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruff check .
+
+      - name: Run full test suite
+        if: steps.locate.outputs.found == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pytest -q
+
+      - name: Remove update artifacts
+        if: steps.locate.outputs.found == 'true'
+        env:
+          UPDATE_ZIP: ${{ steps.locate.outputs.zip }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          rm -f "$UPDATE_ZIP"
+          rm -rf .nexor_update_tmp
+          rm -f .nexor_update_root
+
+          find . -type d -name '__pycache__' -prune -exec rm -rf {} +
+          find . -type d -name '*.egg-info' -prune -exec rm -rf {} +
+          find . -type f \( \
+            -name '*.pyc' \
+            -o -name '*.pyo' \
+            -o -name '*.db-shm' \
+            -o -name '*.db-wal' \
+          \) -delete
+
+      - name: Verify repository changes
+        if: steps.locate.outputs.found == 'true'
+        id: changes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git status --short
+
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "::error::Update produced no repository changes."
+            exit 1
+          fi
+
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Commit applied update
+        if: steps.locate.outputs.found == 'true' && steps.changes.outputs.changed == 'true'
+        env:
+          UPDATE_ZIP: ${{ steps.locate.outputs.zip }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "NEXOR X Auto Update"
+          git config user.email "actions@users.noreply.github.com"
+
+          git add -A
+          git commit -m "Auto Update: ${UPDATE_ZIP%.zip}"
+          git push origin HEAD:main
