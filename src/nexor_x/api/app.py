@@ -8,6 +8,7 @@ from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel, Field
 
 from nexor_x import __version__
+from nexor_x.dashboard import COMMAND_CENTER_V2
 
 
 class PaperCloseRequest(BaseModel):
@@ -144,7 +145,7 @@ def create_app(kernel: Any) -> FastAPI:
 
     @app.get("/", response_class=HTMLResponse)
     async def command_center() -> str:
-        return COMMAND_CENTER
+        return COMMAND_CENTER_V2
 
     @app.get("/favicon.ico", include_in_schema=False)
     async def favicon() -> Response:

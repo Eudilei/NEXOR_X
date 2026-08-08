@@ -273,6 +273,7 @@ class Kernel:
             "services": services,
             "timestamp": datetime.now(UTC).isoformat(),
             "live_certified": False,
+            "version": __version__,
         }
 
     async def market_state(self, symbol: str) -> dict[str, object]:
