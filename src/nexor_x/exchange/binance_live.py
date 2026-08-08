@@ -148,6 +148,68 @@ class BinanceLiveConnector:
             live_order_permission=False,
         )
 
+    async def get_testnet_order(
+        self,
+        *,
+        symbol: str,
+        client_order_id: str | None = None,
+        exchange_order_id: str | None = None,
+    ) -> dict[str, Any]:
+        if not self.policy.use_testnet:
+            raise RuntimeError('Order query is restricted to TESTNET')
+        params: dict[str, Any] = {'symbol': symbol}
+        if client_order_id:
+            params['origClientOrderId'] = client_order_id
+        elif exchange_order_id:
+            params['orderId'] = exchange_order_id
+        else:
+            raise ValueError('order identifier is required')
+        return await self._signed_get('/fapi/v1/order', params)
+
+    async def cancel_testnet_order(
+        self,
+        *,
+        symbol: str,
+        client_order_id: str | None = None,
+        exchange_order_id: str | None = None,
+    ) -> dict[str, Any]:
+        if not self.policy.use_testnet:
+            raise RuntimeError('Order cancel is restricted to TESTNET')
+        params: dict[str, Any] = {'symbol': symbol}
+        if client_order_id:
+            params['origClientOrderId'] = client_order_id
+        elif exchange_order_id:
+            params['orderId'] = exchange_order_id
+        else:
+            raise ValueError('order identifier is required')
+        return await self._signed_delete('/fapi/v1/order', params)
+
+    async def _signed_delete(
+        self,
+        path: str,
+        params: dict[str, Any],
+    ) -> dict[str, Any]:
+        client = self._require_client()
+        timestamp = int(time.time() * 1000) + self._time_offset_ms
+        payload = {
+            **params,
+            'timestamp': timestamp,
+            'recvWindow': self.policy.recv_window_ms,
+        }
+        query = urlencode(payload)
+        signature = hmac.new(
+            self.credentials.api_secret.encode('utf-8'),
+            query.encode('utf-8'),
+            hashlib.sha256,
+        ).hexdigest()
+        headers = {'X-MBX-APIKEY': self.credentials.api_key}
+        response = await client.delete(
+            f'{self.base_url}{path}?{query}&signature={signature}',
+            headers=headers,
+        )
+        response.raise_for_status()
+        return dict(response.json())
+
     async def create_testnet_order(
         self,
         *,

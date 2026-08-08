@@ -109,6 +109,11 @@ class TestnetOrderCreateRequest(BaseModel):
     reduce_only: bool = False
     client_order_id: str | None = Field(default=None, max_length=36)
 
+class TestnetOrderLookupRequest(BaseModel):
+    symbol: str = Field(min_length=3, max_length=30)
+    client_order_id: str | None = Field(default=None, max_length=36)
+    exchange_order_id: str | None = Field(default=None, max_length=64)
+
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
 
@@ -313,6 +318,26 @@ def create_app(kernel: Any) -> FastAPI:
         _: None = Depends(require_admin),
     ) -> dict[str, Any]:
         return await kernel.update_status()
+
+    @app.post("/api/exchange/testnet/orders/status")
+    async def testnet_order_status(
+        body: TestnetOrderLookupRequest,
+        _: None = Depends(require_admin),
+    ) -> dict[str, Any]:
+        try:
+            return await kernel.testnet_order_status(body.model_dump())
+        except (KeyError, TypeError, ValueError, RuntimeError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.post("/api/exchange/testnet/orders/cancel")
+    async def testnet_order_cancel(
+        body: TestnetOrderLookupRequest,
+        _: None = Depends(require_admin),
+    ) -> dict[str, Any]:
+        try:
+            return await kernel.testnet_order_cancel(body.model_dump())
+        except (KeyError, TypeError, ValueError, RuntimeError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     @app.get("/api/portfolio/status")
     async def portfolio_status() -> dict[str, Any]:

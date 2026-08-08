@@ -29,6 +29,10 @@ from nexor_x.execution import PaperExecutionService
 from nexor_x.scanner import MarketScannerService
 from nexor_x.position import PositionManagementService
 from nexor_x.position.service import PositionPolicy
+from nexor_x.orders import (
+    OrderAuditRepository,
+    TestnetOrderLifecycleService,
+)
 from nexor_x.update_engine import UpdateRegistryService
 from nexor_x.orders import (
     OrderSide,
@@ -153,6 +157,10 @@ class Kernel:
             self.binance_live,
         )
         self.update_registry = UpdateRegistryService(self.database)
+        self.testnet_order_lifecycle = TestnetOrderLifecycleService(
+            self.binance_live
+        )
+        self.order_audit = OrderAuditRepository(self.database)
         self.scanner = MarketScannerService(
             self.database,
             self.quant_assessment,
@@ -207,6 +215,7 @@ class Kernel:
                 self._log.error("service_start_failed service=%s error=%s", service.name, exc)
         await self.watchdog.start()
         await self.portfolio.ensure_account()
+        await self.order_audit.start()
         await self.update_registry.start()
         await self.update_registry.register_runtime_version(
             version=__version__,
@@ -561,6 +570,53 @@ class Kernel:
 
     async def update_status(self) -> dict[str, object]:
         return await self.update_registry.status()
+
+    async def testnet_order_status(
+        self, payload: dict[str, object]
+    ) -> dict[str, object]:
+        result = await self.testnet_order_lifecycle.status(
+            symbol=str(payload['symbol']),
+            client_order_id=(
+                None if not payload.get('client_order_id')
+                else str(payload['client_order_id'])
+            ),
+            exchange_order_id=(
+                None if not payload.get('exchange_order_id')
+                else str(payload['exchange_order_id'])
+            ),
+        )
+        order = result['order']
+        await self.order_audit.save(
+            event_type='STATUS',
+            symbol=order['symbol'],
+            payload=result,
+            client_order_id=order['client_order_id'],
+            exchange_order_id=order['exchange_order_id'],
+        )
+        return result
+
+    async def testnet_order_cancel(
+        self, payload: dict[str, object]
+    ) -> dict[str, object]:
+        result = await self.testnet_order_lifecycle.cancel(
+            symbol=str(payload['symbol']),
+            client_order_id=(
+                None if not payload.get('client_order_id')
+                else str(payload['client_order_id'])
+            ),
+            exchange_order_id=(
+                None if not payload.get('exchange_order_id')
+                else str(payload['exchange_order_id'])
+            ),
+        )
+        await self.order_audit.save(
+            event_type='CANCEL',
+            symbol=result['symbol'],
+            payload=result,
+            client_order_id=result['client_order_id'],
+            exchange_order_id=result['exchange_order_id'],
+        )
+        return result
 
     async def portfolio_status(self) -> dict[str, object]:
         return await self.portfolio.snapshot()
