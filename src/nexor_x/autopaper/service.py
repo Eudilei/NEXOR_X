@@ -209,7 +209,11 @@ class AutoPaperService:
     def _open_symbols(
         portfolio: dict[str, Any],
     ) -> set[str]:
-        positions = list(portfolio.get("open_positions") or [])
+        raw_open_positions = portfolio.get("open_positions")
+        if isinstance(raw_open_positions, (list, tuple)):
+            positions = list(raw_open_positions)
+        else:
+            positions = list(portfolio.get("positions") or [])
         symbols: set[str] = set()
 
         for position in positions:

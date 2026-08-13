@@ -30,6 +30,7 @@ from nexor_x.scanner import MarketScannerService
 from nexor_x.position import PositionManagementService
 from nexor_x.position.service import PositionPolicy
 from nexor_x.autopaper import AutoPaperService
+from nexor_x.automanage import AutoPositionManagementService
 from nexor_x.secrets import ExternalCredentialsStatusService
 from nexor_x.pretrade_backtest import (
     ContextBacktestPolicy,
@@ -219,6 +220,10 @@ class Kernel:
             portfolio_snapshot=self.portfolio.snapshot,
             maximum_entries_per_cycle=settings.auto_paper_maximum_entries_per_cycle,
         )
+        self.auto_position_management = AutoPositionManagementService(
+            self.database,
+            self.manage_all_positions,
+        )
         self.telegram = TelegramService(settings.telegram_bot_token, settings.telegram_chat_id)
         self.ollama = OllamaService(settings.ollama_base_url, settings.ollama_model)
         self.scheduler = SchedulerService()
@@ -250,6 +255,14 @@ class Kernel:
                 self._scheduled_validation_cycle,
             )
         )
+        if self.settings.auto_position_management_enabled:
+            self.scheduler.add_job(
+                ScheduledJob(
+                    'auto_position_management_cycle',
+                    self.settings.auto_position_management_interval_seconds,
+                    self._scheduled_auto_position_management,
+                )
+            )
         if self.settings.auto_paper_enabled:
             self.scheduler.add_job(
                 ScheduledJob(
@@ -283,6 +296,7 @@ class Kernel:
         await self.watchdog.start()
         await self.portfolio.ensure_account()
         await self.auto_paper.start()
+        await self.auto_position_management.start()
         await self.context_backtest.start()
         await self.validation_campaign.start()
         await self.validation_cycle.start()
@@ -858,6 +872,21 @@ class Kernel:
             }
         return await self.runtime_processes.status()
 
+    async def auto_position_management_status(self) -> dict[str, object]:
+        return await self.auto_position_management.status()
+
+    async def auto_position_management_run(self) -> dict[str, object]:
+        if self.settings.nexor_mode.value != 'PAPER':
+            raise RuntimeError('Gestão automática permitida somente em PAPER')
+        result = await self.auto_position_management.run_once()
+        await self.event_bus.publish(Event('position.auto_management_cycle', {
+            'evaluated_positions': result['evaluated_positions'],
+            'action_count': result['action_count'],
+            'closed_positions': result['closed_positions'],
+            'live_execution_allowed': False,
+        }, 'auto_position_management'))
+        return result
+
     async def auto_paper_status(self) -> dict[str, object]:
         return await self.auto_paper.status()
 
@@ -980,6 +1009,12 @@ class Kernel:
                 'scheduled_validation_cycle_failed error=%s',
                 exc,
             )
+
+    async def _scheduled_auto_position_management(self) -> None:
+        try:
+            await self.auto_position_management_run()
+        except Exception as exc:
+            self._log.warning('scheduled_auto_position_management_failed error=%s', exc)
 
     async def _scheduled_auto_paper(self) -> None:
         try:

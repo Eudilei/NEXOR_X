@@ -565,6 +565,17 @@ def create_app(kernel: Any) -> FastAPI:
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
+    @app.get("/api/positions/auto-manage/status")
+    async def auto_position_management_status(_: None = Depends(require_admin)) -> dict[str, Any]:
+        return await kernel.auto_position_management_status()
+
+    @app.post("/api/positions/auto-manage/run")
+    async def auto_position_management_run(_: None = Depends(require_admin)) -> dict[str, Any]:
+        try:
+            return await kernel.auto_position_management_run()
+        except RuntimeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
     @app.post("/api/positions/manage-all")
     async def manage_all_positions(_: None = Depends(require_admin)) -> dict[str, Any]:
         try:

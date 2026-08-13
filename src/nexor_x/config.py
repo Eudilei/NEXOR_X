@@ -51,6 +51,9 @@ class Settings(BaseSettings):
     auto_paper_interval_seconds: float = 60.0
     auto_paper_maximum_entries_per_cycle: int = 1
 
+    auto_position_management_enabled: bool = True
+    auto_position_management_interval_seconds: float = 5.0
+
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", extra="ignore", case_sensitive=False
     )
@@ -255,6 +258,8 @@ def _environment_overrides() -> dict[str, Any]:
         "PAPER_FEE_RATE": "paper_fee_rate",
         "PAPER_SLIPPAGE_RATE": "paper_slippage_rate",
         "PAPER_STOP_LOSS_PCT": "paper_stop_loss_pct",
+        "AUTO_POSITION_MANAGEMENT_ENABLED": "auto_position_management_enabled",
+        "AUTO_POSITION_MANAGEMENT_INTERVAL_SECONDS": "auto_position_management_interval_seconds",
         "AUTO_PAPER_ENABLED": "auto_paper_enabled",
         "AUTO_PAPER_INTERVAL_SECONDS": "auto_paper_interval_seconds",
         "AUTO_PAPER_MAXIMUM_ENTRIES_PER_CYCLE": "auto_paper_maximum_entries_per_cycle",
