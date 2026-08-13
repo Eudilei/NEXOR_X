@@ -29,6 +29,7 @@ from nexor_x.execution import PaperExecutionService
 from nexor_x.scanner import MarketScannerService
 from nexor_x.position import PositionManagementService
 from nexor_x.position.service import PositionPolicy
+from nexor_x.campaign import ValidationCampaignService
 from nexor_x.validation import ValidationSnapshotService
 from nexor_x.integration import IntegrationHealthService
 from nexor_x.supervisor import OperationalSupervisorService
@@ -172,6 +173,7 @@ class Kernel:
         self.operational_supervisor = OperationalSupervisorService(self.database)
         self.integration_health = IntegrationHealthService(self.database)
         self.validation_snapshot = ValidationSnapshotService(self.database)
+        self.validation_campaign = ValidationCampaignService(self.database)
         self.scanner = MarketScannerService(
             self.database,
             self.quant_assessment,
@@ -226,6 +228,7 @@ class Kernel:
                 self._log.error("service_start_failed service=%s error=%s", service.name, exc)
         await self.watchdog.start()
         await self.portfolio.ensure_account()
+        await self.validation_campaign.start()
         await self.validation_snapshot.start()
         await self.integration_health.start()
         await self.operational_supervisor.start()
@@ -715,6 +718,28 @@ class Kernel:
                 'live_validation_ready': False,
             },
             'validation_snapshot',
+        ))
+        return result
+
+    async def validation_campaign_status(
+        self,
+    ) -> dict[str, object]:
+        return await self.validation_campaign.status()
+
+    async def validation_campaign_evaluate(
+        self, payload: dict[str, object]
+    ) -> dict[str, object]:
+        result = await self.validation_campaign.evaluate(payload)
+        await self.event_bus.publish(Event(
+            'validation.campaign_evaluated',
+            {
+                'phase': result['phase'],
+                'continue_campaign': result['continue_campaign'],
+                'paper_allowed': result['paper_allowed'],
+                'testnet_allowed': result['testnet_allowed'],
+                'live_allowed': False,
+            },
+            'validation_campaign',
         ))
         return result
 

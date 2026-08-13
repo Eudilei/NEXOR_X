@@ -158,6 +158,21 @@ class ValidationSnapshotRequest(BaseModel):
     operational_incidents: int = Field(ge=0, le=1000000)
     critical_test_failures: int = Field(ge=0, le=1000000)
 
+class ValidationCampaignRequest(BaseModel):
+    days_running: int = Field(ge=0, le=100000)
+    paper_trades: int = Field(ge=0, le=100000000)
+    profit_factor: float = Field(ge=0, le=1000)
+    expected_r: float = Field(ge=-100, le=100)
+    drawdown_pct: float = Field(ge=0, le=100)
+    recent_profit_factor: float = Field(ge=0, le=1000)
+    recent_expected_r: float = Field(ge=-100, le=100)
+    operational_incidents: int = Field(ge=0, le=1000000)
+    critical_test_failures: int = Field(ge=0, le=1000000)
+    integration_healthy: bool
+    recovery_ok: bool
+    supervisor_paper_allowed: bool
+    supervisor_testnet_allowed: bool
+
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
 
@@ -440,6 +455,21 @@ def create_app(kernel: Any) -> FastAPI:
         _: None = Depends(require_admin),
     ) -> dict[str, Any]:
         return await kernel.validation_snapshot_evaluate(
+            body.model_dump()
+        )
+
+    @app.get("/api/validation/campaign/status")
+    async def validation_campaign_status(
+        _: None = Depends(require_admin),
+    ) -> dict[str, Any]:
+        return await kernel.validation_campaign_status()
+
+    @app.post("/api/validation/campaign/evaluate")
+    async def validation_campaign_evaluate(
+        body: ValidationCampaignRequest,
+        _: None = Depends(require_admin),
+    ) -> dict[str, Any]:
+        return await kernel.validation_campaign_evaluate(
             body.model_dump()
         )
 
