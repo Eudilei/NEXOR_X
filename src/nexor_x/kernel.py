@@ -15,6 +15,7 @@ from nexor_x.domain import Event, ServiceState
 from nexor_x.infrastructure.binance import BinanceMarketDataService
 from nexor_x.infrastructure.database import DatabaseService
 from nexor_x.infrastructure.telegram import TelegramService
+from nexor_x.notifications import TelegramEventNotifier
 from nexor_x.logging import logger
 from nexor_x.market.engine import MarketIntelligenceEngine
 from nexor_x.evidence import EvidenceEngine
@@ -225,6 +226,10 @@ class Kernel:
             self.manage_all_positions,
         )
         self.telegram = TelegramService(settings.telegram_bot_token, settings.telegram_chat_id)
+        self.telegram_notifier = TelegramEventNotifier(
+            self.telegram,
+            enabled=settings.telegram_notifications_enabled,
+        )
         self.ollama = OllamaService(settings.ollama_base_url, settings.ollama_model)
         self.scheduler = SchedulerService()
         self.watchdog = WatchdogService(self.registry)
@@ -247,6 +252,7 @@ class Kernel:
             await self.registry.register(service)
 
         self.event_bus.subscribe("*", self._persist_event)
+        self.telegram_notifier.subscribe(self.event_bus)
         self.scheduler.add_job(ScheduledJob("kernel_heartbeat", 30.0, self._heartbeat))
         self.scheduler.add_job(
             ScheduledJob(
@@ -320,7 +326,6 @@ class Kernel:
         await self.event_bus.publish(
             Event("system.started", {"mode": self.settings.nexor_mode.value}, "kernel")
         )
-        await self.telegram.send(f"NEXOR X iniciado em modo {self.settings.nexor_mode.value}.")
 
     async def stop(self) -> None:
         if not self._started:

@@ -54,6 +54,8 @@ class Settings(BaseSettings):
     auto_position_management_enabled: bool = True
     auto_position_management_interval_seconds: float = 5.0
 
+    telegram_notifications_enabled: bool = True
+
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", extra="ignore", case_sensitive=False
     )
@@ -239,6 +241,7 @@ def _environment_overrides() -> dict[str, Any]:
         "BINANCE_API_SECRET": "binance_api_secret",
         "BINANCE_TESTNET": "binance_testnet",
         "TELEGRAM_BOT_TOKEN": "telegram_bot_token",
+        "TELEGRAM_NOTIFICATIONS_ENABLED": "telegram_notifications_enabled",
         "TELEGRAM_CHAT_ID": "telegram_chat_id",
         "OLLAMA_BASE_URL": "ollama_base_url",
         "OLLAMA_MODEL": "ollama_model",
