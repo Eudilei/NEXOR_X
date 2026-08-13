@@ -498,6 +498,12 @@ def create_app(kernel: Any) -> FastAPI:
     ) -> dict[str, Any]:
         return await kernel.context_backtest_status(symbol)
 
+    @app.get("/api/operations/entry-reservation")
+    async def entry_reservation_status(
+        _: None = Depends(require_admin),
+    ) -> dict[str, Any]:
+        return await kernel.entry_reservation_status()
+
     @app.get("/api/operations/exposure-ramp")
     async def probation_exposure_ramp_status(
         _: None = Depends(require_admin),

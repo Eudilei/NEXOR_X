@@ -23,6 +23,7 @@ from nexor_x.operations.entry_admission import EntryAdmissionController
 from nexor_x.operations.recovery_hysteresis import RecoveryHysteresisController
 from nexor_x.operations.post_recovery_probation import PostRecoveryProbationController
 from nexor_x.operations.probation_exposure_ramp import ProbationExposureRamp
+from nexor_x.operations.entry_reservation import AtomicEntryReservationGuard
 from nexor_x.logging import logger
 from nexor_x.market.engine import MarketIntelligenceEngine
 from nexor_x.evidence import EvidenceEngine
@@ -252,6 +253,9 @@ class Kernel:
             state_path="data/entry_probation_state.json"
         )
         self.probation_exposure_ramp = ProbationExposureRamp()
+        self.entry_reservation_guard = AtomicEntryReservationGuard(
+            state_path="data/entry_reservation_state.json"
+        )
         self._started = False
         self._log = logger("kernel")
 
@@ -894,6 +898,11 @@ class Kernel:
         self, symbol: str | None = None,
     ) -> dict[str, object]:
         return await self.context_backtest.latest(symbol=symbol)
+
+    async def entry_reservation_status(
+        self,
+    ) -> dict[str, object]:
+        return self.entry_reservation_guard.status()
 
     async def probation_exposure_ramp_status(
         self,

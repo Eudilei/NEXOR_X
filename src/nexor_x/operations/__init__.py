@@ -1,3 +1,4 @@
+from .entry_reservation import AtomicEntryReservationGuard, EntryReservationPolicy
 from .probation_exposure_ramp import ProbationExposureRamp, ProbationExposureRampPolicy
 from .post_recovery_probation import PostRecoveryProbationController, PostRecoveryProbationPolicy
 from .recovery_hysteresis import RecoveryHysteresisController, RecoveryHysteresisPolicy
@@ -16,4 +17,6 @@ __all__ = ["ProbationExposureRamp", "ProbationExposureRampPolicy", "LiveReadines
     "RecoveryHysteresisPolicy",
     "PostRecoveryProbationController",
     "PostRecoveryProbationPolicy",
+    "AtomicEntryReservationGuard",
+    "EntryReservationPolicy",
 ]
