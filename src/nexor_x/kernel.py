@@ -29,6 +29,7 @@ from nexor_x.execution import PaperExecutionService
 from nexor_x.scanner import MarketScannerService
 from nexor_x.position import PositionManagementService
 from nexor_x.position.service import PositionPolicy
+from nexor_x.integration import IntegrationHealthService
 from nexor_x.supervisor import OperationalSupervisorService
 from nexor_x.recovery import RecoveryGuardService
 from nexor_x.orders import (
@@ -168,6 +169,7 @@ class Kernel:
             self.binance_live,
         )
         self.operational_supervisor = OperationalSupervisorService(self.database)
+        self.integration_health = IntegrationHealthService(self.database)
         self.scanner = MarketScannerService(
             self.database,
             self.quant_assessment,
@@ -222,6 +224,7 @@ class Kernel:
                 self._log.error("service_start_failed service=%s error=%s", service.name, exc)
         await self.watchdog.start()
         await self.portfolio.ensure_account()
+        await self.integration_health.start()
         await self.operational_supervisor.start()
         await self.recovery_guard.start()
         await self.order_audit.start()
@@ -667,6 +670,27 @@ class Kernel:
                 'live_allowed': False,
             },
             'operational_supervisor',
+        ))
+        return result
+
+    async def integration_health_status(
+        self,
+    ) -> dict[str, object]:
+        return await self.integration_health.status()
+
+    async def integration_health_evaluate(
+        self, payload: dict[str, object]
+    ) -> dict[str, object]:
+        result = await self.integration_health.evaluate(payload)
+        await self.event_bus.publish(Event(
+            'integration.health_evaluated',
+            {
+                'status': result['status'],
+                'paper_ready': result['paper_ready'],
+                'testnet_ready': result['testnet_ready'],
+                'live_ready': False,
+            },
+            'integration_health',
         ))
         return result
 

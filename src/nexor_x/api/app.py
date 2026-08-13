@@ -126,6 +126,20 @@ class OperationalSupervisorRequest(BaseModel):
     critical_test_failures: int = Field(ge=0, le=1000000)
     operational_incidents: int = Field(ge=0, le=1000000)
 
+class IntegrationHealthRequest(BaseModel):
+    database_ok: bool
+    market_ok: bool
+    scanner_ok: bool
+    strategy_ok: bool
+    allocation_ok: bool
+    recovery_ok: bool
+    supervisor_ok: bool
+    certification_ok: bool
+    update_registry_ok: bool
+    testnet_connector_ok: bool
+    critical_test_failures: int = Field(ge=0, le=1000000)
+    operational_incidents: int = Field(ge=0, le=1000000)
+
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
 
@@ -378,6 +392,21 @@ def create_app(kernel: Any) -> FastAPI:
         _: None = Depends(require_admin),
     ) -> dict[str, Any]:
         return await kernel.operational_supervisor_evaluate(
+            body.model_dump()
+        )
+
+    @app.get("/api/system/integration-health")
+    async def integration_health_status(
+        _: None = Depends(require_admin),
+    ) -> dict[str, Any]:
+        return await kernel.integration_health_status()
+
+    @app.post("/api/system/integration-health/evaluate")
+    async def integration_health_evaluate(
+        body: IntegrationHealthRequest,
+        _: None = Depends(require_admin),
+    ) -> dict[str, Any]:
+        return await kernel.integration_health_evaluate(
             body.model_dump()
         )
 
