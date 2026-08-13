@@ -498,6 +498,12 @@ def create_app(kernel: Any) -> FastAPI:
     ) -> dict[str, Any]:
         return await kernel.context_backtest_status(symbol)
 
+    @app.get("/api/operations/degradation")
+    async def performance_degradation_status(
+        _: None = Depends(require_admin),
+    ) -> dict[str, Any]:
+        return await kernel.performance_degradation_status()
+
     @app.get("/api/live/certification")
     async def live_certification_status(
         _: None = Depends(require_admin),

@@ -18,6 +18,7 @@ from nexor_x.infrastructure.telegram import TelegramService
 from nexor_x.notifications import TelegramEventNotifier
 from nexor_x.operations import LiveReadinessEvaluator
 from nexor_x.operations.live_certification import LiveCertificationEvaluator
+from nexor_x.operations.performance_degradation import PerformanceDegradationGuard
 from nexor_x.logging import logger
 from nexor_x.market.engine import MarketIntelligenceEngine
 from nexor_x.evidence import EvidenceEngine
@@ -238,6 +239,7 @@ class Kernel:
         self.runtime_processes = None
         self.live_readiness_evaluator = LiveReadinessEvaluator()
         self.live_certification_evaluator = LiveCertificationEvaluator()
+        self.performance_degradation_guard = PerformanceDegradationGuard()
         self._started = False
         self._log = logger("kernel")
 
@@ -864,6 +866,33 @@ class Kernel:
         self, symbol: str | None = None,
     ) -> dict[str, object]:
         return await self.context_backtest.latest(symbol=symbol)
+
+    async def performance_degradation_status(
+        self,
+    ) -> dict[str, object]:
+        cycle = await self.validation_cycle_status()
+        certification = await self.live_certification_status()
+        report = self.performance_degradation_guard.evaluate(
+            recent=cycle,
+            certification=certification,
+        )
+        await self.event_bus.publish(Event(
+            "operations.performance_degradation_evaluated",
+            {
+                "state": report["state"],
+                "new_entries_allowed": report["new_entries_allowed"],
+                "hard_reasons": report["hard_reasons"],
+                "caution_reasons": report["caution_reasons"],
+            },
+            "performance_degradation",
+        ))
+        return report
+
+    async def new_entries_allowed_by_performance(
+        self,
+    ) -> bool:
+        report = await self.performance_degradation_status()
+        return bool(report["new_entries_allowed"])
 
     async def live_certification_status(
         self,

@@ -24,6 +24,7 @@ class TelegramEventNotifier:
         "validation.cycle_completed",
         "live.readiness_evaluated",
         "live.certification_evaluated",
+        "operations.performance_degradation_evaluated",
     )
 
     def __init__(
@@ -166,6 +167,19 @@ class TelegramEventNotifier:
                 "📈 CICLO DE VALIDAÇÃO\n"
                 f"Dias acumulados: {days}\n"
                 f"Fase: {phase}"
+            )
+
+        if topic == "operations.performance_degradation_evaluated":
+            state = str(payload.get("state", "NORMAL"))
+            hard = list(payload.get("hard_reasons") or [])
+            caution = list(payload.get("caution_reasons") or [])
+            reasons = hard or caution
+            reason_text = ", ".join(str(item) for item in reasons[:6])
+            return (
+                "🛡️ MONITOR DE DEGRADAÇÃO\n"
+                f"Estado: {state}\n"
+                f"Novas entradas: {'SIM' if payload.get('new_entries_allowed') else 'BLOQUEADAS'}\n"
+                f"Motivos: {reason_text or '-'}"
             )
 
         if topic == "live.certification_evaluated":
