@@ -26,6 +26,7 @@ class TelegramEventNotifier:
         "live.certification_evaluated",
         "operations.performance_degradation_evaluated",
         "execution.entry_blocked_degradation",
+        "execution.entry_recovery_state_changed",
     )
 
     def __init__(
@@ -169,6 +170,23 @@ class TelegramEventNotifier:
                 f"Dias acumulados: {days}\n"
                 f"Fase: {phase}"
             )
+
+        if topic == "execution.entry_recovery_state_changed":
+            transition = str(payload.get("transition", "-"))
+            if transition == "LATCHED":
+                return (
+                    "🔒 BLOQUEIO DE RECUPERAÇÃO ATIVADO\n"
+                    "Novas entradas permanecem bloqueadas até ""recuperação confirmada.\n"
+                    "LIVE: BLOQUEADO"
+                )
+            if transition == "RECOVERED":
+                return (
+                    "✅ RECUPERAÇÃO CONFIRMADA\n"
+                    "Cooldown e confirmações saudáveis concluídos.\n"
+                    "Novas entradas voltam a seguir os demais gates.\n"
+                    "LIVE: BLOQUEADO"
+                )
+            return None
 
         if topic == "execution.entry_blocked_degradation":
             reasons = list(payload.get("hard_reasons") or [])

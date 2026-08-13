@@ -20,6 +20,7 @@ from nexor_x.operations import LiveReadinessEvaluator
 from nexor_x.operations.live_certification import LiveCertificationEvaluator
 from nexor_x.operations.performance_degradation import PerformanceDegradationGuard
 from nexor_x.operations.entry_admission import EntryAdmissionController
+from nexor_x.operations.recovery_hysteresis import RecoveryHysteresisController
 from nexor_x.logging import logger
 from nexor_x.market.engine import MarketIntelligenceEngine
 from nexor_x.evidence import EvidenceEngine
@@ -242,6 +243,9 @@ class Kernel:
         self.live_certification_evaluator = LiveCertificationEvaluator()
         self.performance_degradation_guard = PerformanceDegradationGuard()
         self.entry_admission_controller = EntryAdmissionController()
+        self.entry_recovery_guard = RecoveryHysteresisController(
+            state_path="data/entry_recovery_state.json"
+        )
         self._started = False
         self._log = logger("kernel")
 
@@ -874,6 +878,14 @@ class Kernel:
     ) -> dict[str, object]:
         return await self.context_backtest.latest(symbol=symbol)
 
+    async def entry_recovery_hysteresis_status(
+        self,
+    ) -> dict[str, object]:
+        degradation = await self.performance_degradation_status()
+        return self.entry_recovery_guard.evaluate(
+            degradation=degradation,
+        )
+
     async def entry_admission_status(
         self,
         *,
@@ -881,11 +893,37 @@ class Kernel:
         reduce_only: bool = False,
     ) -> dict[str, object]:
         degradation = await self.performance_degradation_status()
-        report = self.entry_admission_controller.evaluate(
+        recovery = self.entry_recovery_guard.evaluate(
             degradation=degradation,
+        )
+        report = self.entry_admission_controller.evaluate(
+            degradation=recovery["degradation"],
             action=action,
             reduce_only=reduce_only,
         )
+        report["recovery_hysteresis"] = {
+            "raw_state": recovery["raw_state"],
+            "effective_state": recovery["effective_state"],
+            "latched": recovery["latched"],
+            "healthy_checks": recovery["healthy_checks"],
+            "required_healthy_checks": recovery["required_healthy_checks"],
+            "cooldown_seconds": recovery["cooldown_seconds"],
+            "elapsed_since_block_seconds": recovery["elapsed_since_block_seconds"],
+            "transition": recovery["transition"],
+        }
+        if recovery["transition"]:
+            await self.event_bus.publish(Event(
+                "execution.entry_recovery_state_changed",
+                {
+                    "transition": recovery["transition"],
+                    "raw_state": recovery["raw_state"],
+                    "effective_state": recovery["effective_state"],
+                    "healthy_checks": recovery["healthy_checks"],
+                    "new_entries_allowed": recovery["new_entries_allowed"],
+                    "live_allowed": False,
+                },
+                "recovery_hysteresis_guard",
+            ))
         if not report["allowed"]:
             await self.event_bus.publish(Event(
                 "execution.entry_blocked_degradation",
