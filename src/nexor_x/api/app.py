@@ -491,6 +491,13 @@ def create_app(kernel: Any) -> FastAPI:
     ) -> dict[str, Any]:
         return await kernel.validation_evidence_collect()
 
+    @app.get("/api/backtest/context/{symbol}")
+    async def context_backtest_status(
+        symbol: str,
+        _: None = Depends(require_admin),
+    ) -> dict[str, Any]:
+        return await kernel.context_backtest_status(symbol)
+
     @app.get("/api/portfolio/status")
     async def portfolio_status() -> dict[str, Any]:
         return await kernel.portfolio_status()

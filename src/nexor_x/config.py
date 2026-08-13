@@ -32,6 +32,16 @@ class Settings(BaseSettings):
     binance_maximum_time_drift_ms: int = 1000
     binance_use_testnet: bool = True
 
+    pretrade_backtest_minimum_samples: int = 30
+    pretrade_backtest_maximum_samples: int = 300
+    pretrade_backtest_minimum_profit_factor: float = 1.10
+    pretrade_backtest_minimum_expected_r: float = 0.05
+    pretrade_backtest_minimum_recent_profit_factor: float = 1.00
+    pretrade_backtest_minimum_recent_expected_r: float = 0.00
+    pretrade_backtest_maximum_drawdown_r: float = 8.0
+    pretrade_backtest_minimum_walk_forward_pass_ratio: float = 0.60
+    pretrade_backtest_folds: int = 3
+
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", extra="ignore", case_sensitive=False
     )

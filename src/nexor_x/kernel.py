@@ -29,6 +29,10 @@ from nexor_x.execution import PaperExecutionService
 from nexor_x.scanner import MarketScannerService
 from nexor_x.position import PositionManagementService
 from nexor_x.position.service import PositionPolicy
+from nexor_x.pretrade_backtest import (
+    ContextBacktestPolicy,
+    ContextBacktestService,
+)
 from nexor_x.evidence import EvidenceCollector
 from nexor_x.validation_cycle import ValidationCycleService
 from nexor_x.campaign import ValidationCampaignService
@@ -81,6 +85,21 @@ class Kernel:
             probability_holdout_fraction=settings.probability_holdout_fraction,
             probability_kelly_fraction=settings.probability_kelly_fraction,
             monte_carlo_minimum_observations=settings.monte_carlo_minimum_observations,
+        )
+        self.context_backtest = ContextBacktestService(
+            self.database,
+            self.laboratory,
+            ContextBacktestPolicy(
+                minimum_samples=settings.pretrade_backtest_minimum_samples,
+                maximum_samples=settings.pretrade_backtest_maximum_samples,
+                minimum_profit_factor=settings.pretrade_backtest_minimum_profit_factor,
+                minimum_expected_r=settings.pretrade_backtest_minimum_expected_r,
+                minimum_recent_profit_factor=settings.pretrade_backtest_minimum_recent_profit_factor,
+                minimum_recent_expected_r=settings.pretrade_backtest_minimum_recent_expected_r,
+                maximum_drawdown_r=settings.pretrade_backtest_maximum_drawdown_r,
+                minimum_walk_forward_pass_ratio=settings.pretrade_backtest_minimum_walk_forward_pass_ratio,
+                folds=settings.pretrade_backtest_folds,
+            ),
         )
         self.portfolio = PortfolioService(self.database, settings.initial_paper_equity)
         self.pre_trade_gate = PreTradeGate(
@@ -243,6 +262,7 @@ class Kernel:
                 self._log.error("service_start_failed service=%s error=%s", service.name, exc)
         await self.watchdog.start()
         await self.portfolio.ensure_account()
+        await self.context_backtest.start()
         await self.validation_campaign.start()
         await self.validation_cycle.start()
         await self.validation_snapshot.start()
@@ -796,6 +816,11 @@ class Kernel:
         ))
         return result
 
+    async def context_backtest_status(
+        self, symbol: str | None = None,
+    ) -> dict[str, object]:
+        return await self.context_backtest.latest(symbol=symbol)
+
     async def portfolio_status(self) -> dict[str, object]:
         return await self.portfolio.snapshot()
 
@@ -810,6 +835,11 @@ class Kernel:
             quant=quant,
             portfolio=portfolio,
         )
+        contextual = await self.context_backtest.evaluate(
+            symbol=symbol,
+            decision=str(quant.get('decision') or 'NO_EDGE'),
+            regime=str(market.get('regime') or 'UNKNOWN'),
+        )
         await self.event_bus.publish(
             Event(
                 "risk.readiness",
@@ -819,11 +849,24 @@ class Kernel:
                     "allowed": readiness.allowed,
                     "side": readiness.side,
                     "risk_budget": readiness.risk_budget,
+                    "context_backtest_approved": contextual['approved'],
                 },
                 "pre_trade_gate",
             )
         )
         result = readiness.to_dict()
+        result['context_backtest'] = contextual
+        result['checks']['context_backtest'] = bool(contextual['approved'])
+        if not contextual['approved']:
+            result['allowed'] = False
+            result['decision'] = 'BLOCKED'
+            result['risk_budget'] = 0.0
+            reasons = list(result.get('reasons') or [])
+            reasons.append(
+                'backtest contextual reprovado: '
+                + ', '.join(contextual['blockers'])
+            )
+            result['reasons'] = reasons
         result["portfolio"] = portfolio
         result["quant"] = {
             "decision": quant["decision"],
