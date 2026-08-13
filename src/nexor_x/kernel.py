@@ -21,6 +21,7 @@ from nexor_x.operations.live_certification import LiveCertificationEvaluator
 from nexor_x.operations.performance_degradation import PerformanceDegradationGuard
 from nexor_x.operations.entry_admission import EntryAdmissionController
 from nexor_x.operations.recovery_hysteresis import RecoveryHysteresisController
+from nexor_x.operations.post_recovery_probation import PostRecoveryProbationController
 from nexor_x.logging import logger
 from nexor_x.market.engine import MarketIntelligenceEngine
 from nexor_x.evidence import EvidenceEngine
@@ -245,6 +246,9 @@ class Kernel:
         self.entry_admission_controller = EntryAdmissionController()
         self.entry_recovery_guard = RecoveryHysteresisController(
             state_path="data/entry_recovery_state.json"
+        )
+        self.post_recovery_probation = PostRecoveryProbationController(
+            state_path="data/entry_probation_state.json"
         )
         self._started = False
         self._log = logger("kernel")
@@ -878,6 +882,11 @@ class Kernel:
     ) -> dict[str, object]:
         return await self.context_backtest.latest(symbol=symbol)
 
+    async def post_recovery_probation_status(
+        self,
+    ) -> dict[str, object]:
+        return self.post_recovery_probation.status()
+
     async def entry_recovery_hysteresis_status(
         self,
     ) -> dict[str, object]:
@@ -896,11 +905,28 @@ class Kernel:
         recovery = self.entry_recovery_guard.evaluate(
             degradation=degradation,
         )
-        report = self.entry_admission_controller.evaluate(
+        if recovery["transition"] == "RECOVERED":
+            self.post_recovery_probation.start()
+        probation = self.post_recovery_probation.evaluate(
             degradation=recovery["degradation"],
             action=action,
             reduce_only=reduce_only,
         )
+        report = self.entry_admission_controller.evaluate(
+            degradation=probation["degradation"],
+            action=action,
+            reduce_only=reduce_only,
+        )
+        report["post_recovery_probation"] = {
+            "active": probation["active"],
+            "allowed": probation["allowed"],
+            "block_reason": probation["block_reason"],
+            "admitted_entries": probation["admitted_entries"],
+            "max_entries_during_probation": (
+                probation["max_entries_during_probation"]
+            ),
+            "remaining_seconds": probation["remaining_seconds"],
+        }
         report["recovery_hysteresis"] = {
             "raw_state": recovery["raw_state"],
             "effective_state": recovery["effective_state"],
@@ -949,6 +975,31 @@ class Kernel:
             reduce_only=reduce_only,
         )
         if report["allowed"]:
+            if not reduce_only:
+                degradation = await self.performance_degradation_status()
+                recovery = self.entry_recovery_guard.evaluate(
+                    degradation=degradation,
+                )
+                probation = self.post_recovery_probation.admit(
+                    degradation=recovery["degradation"],
+                    action=action,
+                    reduce_only=False,
+                )
+                if not probation["allowed"]:
+                    raise RuntimeError(
+                        "New entry blocked by post-recovery probation: "
+                        + str(probation.get("block_reason") or "blocked")
+                    )
+                report["post_recovery_probation"] = {
+                    "active": probation["active"],
+                    "allowed": probation["allowed"],
+                    "block_reason": probation["block_reason"],
+                    "admitted_entries": probation["admitted_entries"],
+                    "max_entries_during_probation": (
+                        probation["max_entries_during_probation"]
+                    ),
+                    "remaining_seconds": probation["remaining_seconds"],
+                }
             return report
         reasons = list(report.get("hard_reasons") or [])
         raise RuntimeError(

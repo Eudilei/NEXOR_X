@@ -183,7 +183,8 @@ class TelegramEventNotifier:
                 return (
                     "✅ RECUPERAÇÃO CONFIRMADA\n"
                     "Cooldown e confirmações saudáveis concluídos.\n"
-                    "Novas entradas voltam a seguir os demais gates.\n"
+                    "O sistema entrou em provação de retomada gradual.\n"
+"Máx. 3 admissões, com 15 min entre elas, por 60 min.\n"
                     "LIVE: BLOQUEADO"
                 )
             return None

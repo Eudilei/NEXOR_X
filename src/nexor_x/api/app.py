@@ -498,6 +498,12 @@ def create_app(kernel: Any) -> FastAPI:
     ) -> dict[str, Any]:
         return await kernel.context_backtest_status(symbol)
 
+    @app.get("/api/operations/post-recovery-probation")
+    async def post_recovery_probation_status(
+        _: None = Depends(require_admin),
+    ) -> dict[str, Any]:
+        return await kernel.post_recovery_probation_status()
+
     @app.get("/api/operations/recovery-hysteresis")
     async def entry_recovery_hysteresis_status(
         _: None = Depends(require_admin),

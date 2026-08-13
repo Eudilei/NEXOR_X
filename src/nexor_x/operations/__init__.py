@@ -1,3 +1,4 @@
+from .post_recovery_probation import PostRecoveryProbationController, PostRecoveryProbationPolicy
 from .recovery_hysteresis import RecoveryHysteresisController, RecoveryHysteresisPolicy
 from .entry_admission import EntryAdmissionController
 from .performance_degradation import DegradationPolicy, PerformanceDegradationGuard
@@ -12,4 +13,6 @@ __all__ = ["LiveReadinessEvaluator",
     "EntryAdmissionController",
     "RecoveryHysteresisController",
     "RecoveryHysteresisPolicy",
+    "PostRecoveryProbationController",
+    "PostRecoveryProbationPolicy",
 ]
