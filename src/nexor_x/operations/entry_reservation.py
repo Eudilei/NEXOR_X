@@ -1,3 +1,4 @@
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -14,7 +15,61 @@ class EntryReservationPolicy:
     reservation_ttl_seconds: int = 30
 
 
+class _EntryReservationTransaction:
+    def __init__(
+        self,
+        guard: "AtomicEntryReservationGuard",
+        *,
+        action: str,
+        metadata: dict[str, Any] | None,
+        bypass: bool,
+    ) -> None:
+        self.guard = guard
+        self.action = action
+        self.metadata = metadata
+        self.bypass = bypass
+        self.reservation_id: str | None = None
+
+    def __enter__(self) -> dict[str, Any]:
+        if self.bypass:
+            return {
+                "allowed": True,
+                "reason": "BYPASS_REDUCE_ONLY",
+                "active": False,
+                "reservation_id": None,
+                "bypass": True,
+                "live_allowed": False,
+            }
+
+        result = self.guard.reserve(
+            action=self.action,
+            metadata=self.metadata,
+        )
+        if not result["allowed"]:
+            raise RuntimeError(
+                "New entry blocked by active atomic reservation: "
+                + str(result.get("reservation_id") or "active")
+            )
+
+        self.reservation_id = str(result["reservation_id"])
+        result["bypass"] = False
+        return result
+
+    def __exit__(self, exc_type, exc, tb) -> bool:
+        if self.bypass or self.reservation_id is None:
+            return False
+
+        if exc_type is None:
+            self.guard.confirm(self.reservation_id)
+        else:
+            self.guard.release(self.reservation_id)
+
+        return False
+
+
 class AtomicEntryReservationGuard:
+    """Reserva atômica para serializar novas admissões."""
+
     def __init__(
         self,
         *,
@@ -33,17 +88,44 @@ class AtomicEntryReservationGuard:
         }
         self._load()
 
-    def reserve(self, *, action: str, metadata: dict[str, Any] | None = None, now: datetime | None = None) -> dict[str, Any]:
+    def transaction(
+        self,
+        *,
+        action: str,
+        metadata: dict[str, Any] | None = None,
+        bypass: bool = False,
+    ) -> _EntryReservationTransaction:
+        return _EntryReservationTransaction(
+            self,
+            action=action,
+            metadata=metadata,
+            bypass=bypass,
+        )
+
+    def reserve(
+        self,
+        *,
+        action: str,
+        metadata: dict[str, Any] | None = None,
+        now: datetime | None = None,
+    ) -> dict[str, Any]:
         now = self._utc(now)
         with self._lock:
             self._expire_if_needed(now)
+
             if self._state.get("reservation_id"):
-                return self._report(False, "ENTRY_RESERVATION_ALREADY_ACTIVE", now)
+                return self._report(
+                    False,
+                    "ENTRY_RESERVATION_ALREADY_ACTIVE",
+                    now,
+                )
+
             reservation_id = uuid.uuid4().hex
             expires_at = datetime.fromtimestamp(
                 now.timestamp() + self.policy.reservation_ttl_seconds,
                 tz=UTC,
             )
+
             self._state = {
                 "reservation_id": reservation_id,
                 "action": str(action).upper(),
@@ -54,14 +136,22 @@ class AtomicEntryReservationGuard:
             self._save()
             return self._report(True, "RESERVED", now)
 
-    def confirm(self, reservation_id: str, *, now: datetime | None = None) -> dict[str, Any]:
+    def confirm(
+        self,
+        reservation_id: str,
+        *,
+        now: datetime | None = None,
+    ) -> dict[str, Any]:
         now = self._utc(now)
         with self._lock:
             self._expire_if_needed(now)
+
             if self._state.get("reservation_id") != reservation_id:
                 return self._report(False, "RESERVATION_NOT_FOUND", now)
+
             snapshot = dict(self._state)
             self._clear()
+
             return {
                 "confirmed": True,
                 "reason": "CONFIRMED",
@@ -71,12 +161,19 @@ class AtomicEntryReservationGuard:
                 "evaluated_at": now.isoformat(),
             }
 
-    def release(self, reservation_id: str, *, now: datetime | None = None) -> dict[str, Any]:
+    def release(
+        self,
+        reservation_id: str,
+        *,
+        now: datetime | None = None,
+    ) -> dict[str, Any]:
         now = self._utc(now)
         with self._lock:
             self._expire_if_needed(now)
+
             if self._state.get("reservation_id") != reservation_id:
                 return self._report(False, "RESERVATION_NOT_FOUND", now)
+
             self._clear()
             return {
                 "released": True,
@@ -93,11 +190,20 @@ class AtomicEntryReservationGuard:
             active = bool(self._state.get("reservation_id"))
             return self._report(
                 not active,
-                "ENTRY_RESERVATION_ALREADY_ACTIVE" if active else "AVAILABLE",
+                (
+                    "ENTRY_RESERVATION_ALREADY_ACTIVE"
+                    if active
+                    else "AVAILABLE"
+                ),
                 now,
             )
 
-    def _report(self, allowed: bool, reason: str, now: datetime) -> dict[str, Any]:
+    def _report(
+        self,
+        allowed: bool,
+        reason: str,
+        now: datetime,
+    ) -> dict[str, Any]:
         return {
             "allowed": allowed,
             "reason": reason,
@@ -144,7 +250,10 @@ class AtomicEntryReservationGuard:
             return
         self.state_path.parent.mkdir(parents=True, exist_ok=True)
         tmp = self.state_path.with_suffix(self.state_path.suffix + ".tmp")
-        tmp.write_text(json.dumps(self._state, indent=2) + "\n", encoding="utf-8")
+        tmp.write_text(
+            json.dumps(self._state, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
         tmp.replace(self.state_path)
 
     @staticmethod
