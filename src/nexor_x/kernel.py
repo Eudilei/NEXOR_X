@@ -656,59 +656,63 @@ class Kernel:
     async def testnet_order_create(
         self, payload: dict[str, object]
     ) -> dict[str, object]:
-        with self.entry_reservation_guard.transaction(
-            action="TESTNET_CREATE_TRANSACTION",
-            metadata={"symbol": payload.get("symbol")},
+        with self.post_recovery_probation.successful_entry_transaction(
+            action="TESTNET_CREATE_SUCCESS",
             bypass=bool(payload.get("reduce_only", False)),
         ):
-            reduce_only = bool(payload.get("reduce_only", False))
-            admission = await self.require_entry_admission(
-                action="TESTNET_CREATE",
-                reduce_only=reduce_only,
-            )
-            if not reduce_only and payload.get("quantity") is not None:
-                payload = dict(payload)
-                original_quantity = payload["quantity"]
-                payload["original_quantity"] = original_quantity
-                payload["quantity"] = self.probation_exposure_ramp.scale_quantity(
-                    original_quantity,
-                    float(admission.get("exposure_multiplier", 1.0)),
+            with self.entry_reservation_guard.transaction(
+                action="TESTNET_CREATE_TRANSACTION",
+                metadata={"symbol": payload.get("symbol")},
+                bypass=bool(payload.get("reduce_only", False)),
+            ):
+                reduce_only = bool(payload.get("reduce_only", False))
+                admission = await self.require_entry_admission(
+                    action="TESTNET_CREATE",
+                    reduce_only=reduce_only,
                 )
-                payload["exposure_multiplier"] = admission.get(
-                    "exposure_multiplier", 1.0
+                if not reduce_only and payload.get("quantity") is not None:
+                    payload = dict(payload)
+                    original_quantity = payload["quantity"]
+                    payload["original_quantity"] = original_quantity
+                    payload["quantity"] = self.probation_exposure_ramp.scale_quantity(
+                        original_quantity,
+                        float(admission.get("exposure_multiplier", 1.0)),
+                    )
+                    payload["exposure_multiplier"] = admission.get(
+                        "exposure_multiplier", 1.0
+                    )
+                if not await self.recovery_guard.allows_testnet_orders():
+                    raise RuntimeError(
+                        'TESTNET orders locked: run recovery reconciliation first'
+                    )
+                request = TestnetOrderRequest(
+                    symbol=str(payload['symbol']),
+                    side=OrderSide(str(payload['side']).upper()),
+                    order_type=OrderType(str(payload['order_type']).upper()),
+                    quantity=float(payload['quantity']),
+                    price=(None if payload.get('price') is None else float(payload['price'])),
+                    reduce_only=reduce_only,
+                    client_order_id=(
+                        None if not payload.get('client_order_id')
+                        else str(payload['client_order_id'])
+                    ),
                 )
-            if not await self.recovery_guard.allows_testnet_orders():
-                raise RuntimeError(
-                    'TESTNET orders locked: run recovery reconciliation first'
+                result = await self.testnet_orders.create(
+                    strategy_id=str(payload['strategy_id']),
+                    signal_id=str(payload['signal_id']),
+                    request=request,
                 )
-            request = TestnetOrderRequest(
-                symbol=str(payload['symbol']),
-                side=OrderSide(str(payload['side']).upper()),
-                order_type=OrderType(str(payload['order_type']).upper()),
-                quantity=float(payload['quantity']),
-                price=(None if payload.get('price') is None else float(payload['price'])),
-                reduce_only=reduce_only,
-                client_order_id=(
-                    None if not payload.get('client_order_id')
-                    else str(payload['client_order_id'])
-                ),
-            )
-            result = await self.testnet_orders.create(
-                strategy_id=str(payload['strategy_id']),
-                signal_id=str(payload['signal_id']),
-                request=request,
-            )
-            await self.event_bus.publish(Event(
-                'order.testnet_submitted',
-                {
-                    'symbol': result['request']['symbol'],
-                    'status': result['status'],
-                    'duplicate': result['duplicate'],
-                    'live_order_sent': False,
-                },
-                'testnet_order_service',
-            ))
-            return result
+                await self.event_bus.publish(Event(
+                    'order.testnet_submitted',
+                    {
+                        'symbol': result['request']['symbol'],
+                        'status': result['status'],
+                        'duplicate': result['duplicate'],
+                        'live_order_sent': False,
+                    },
+                    'testnet_order_service',
+                ))
+                return result
 
     async def update_status(self) -> dict[str, object]:
         return await self.update_registry.status()
@@ -1020,7 +1024,7 @@ class Kernel:
                 recovery = self.entry_recovery_guard.evaluate(
                     degradation=degradation,
                 )
-                probation = self.post_recovery_probation.admit(
+                probation = self.post_recovery_probation.evaluate(
                     degradation=recovery["degradation"],
                     action=action,
                     reduce_only=False,
@@ -1246,22 +1250,26 @@ class Kernel:
 
 
     async def paper_open(self, symbol: str) -> dict[str, object]:
-        with self.entry_reservation_guard.transaction(
-            action="PAPER_OPEN_TRANSACTION",
-            metadata={"symbol": symbol},
+        with self.post_recovery_probation.successful_entry_transaction(
+            action="PAPER_OPEN_SUCCESS",
+            bypass=False,
         ):
-            await self.require_entry_admission(
-                action="PAPER_OPEN",
-                reduce_only=False,
-            )
-            market = await self.market_state(symbol)
-            readiness = await self.trading_readiness(symbol)
-            portfolio = await self.portfolio.snapshot()
-            fill = await self.paper_execution.open_from_readiness(
-                mode=self.settings.nexor_mode, readiness=readiness, market=market, portfolio=portfolio
-            )
-            await self.event_bus.publish(Event("execution.paper_open", fill.to_dict(), "paper_execution"))
-            return fill.to_dict()
+            with self.entry_reservation_guard.transaction(
+                action="PAPER_OPEN_TRANSACTION",
+                metadata={"symbol": symbol},
+            ):
+                await self.require_entry_admission(
+                    action="PAPER_OPEN",
+                    reduce_only=False,
+                )
+                market = await self.market_state(symbol)
+                readiness = await self.trading_readiness(symbol)
+                portfolio = await self.portfolio.snapshot()
+                fill = await self.paper_execution.open_from_readiness(
+                    mode=self.settings.nexor_mode, readiness=readiness, market=market, portfolio=portfolio
+                )
+                await self.event_bus.publish(Event("execution.paper_open", fill.to_dict(), "paper_execution"))
+                return fill.to_dict()
 
     async def paper_close(self, position_id: int, market_price: float, reason: str) -> dict[str, object]:
         result = await self.paper_execution.close_position(position_id, market_price, reason)
