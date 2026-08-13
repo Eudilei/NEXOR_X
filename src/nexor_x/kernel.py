@@ -29,6 +29,7 @@ from nexor_x.execution import PaperExecutionService
 from nexor_x.scanner import MarketScannerService
 from nexor_x.position import PositionManagementService
 from nexor_x.position.service import PositionPolicy
+from nexor_x.autopaper import AutoPaperService
 from nexor_x.secrets import ExternalCredentialsStatusService
 from nexor_x.pretrade_backtest import (
     ContextBacktestPolicy,
@@ -210,6 +211,14 @@ class Kernel:
             concurrency=settings.scanner_concurrency,
             top_candidates=settings.scanner_top_candidates,
         )
+        self.auto_paper = AutoPaperService(
+            self.database,
+            scanner_run=self.scanner_run,
+            trading_readiness=self.trading_readiness,
+            paper_open=self.paper_open,
+            portfolio_snapshot=self.portfolio.snapshot,
+            maximum_entries_per_cycle=settings.auto_paper_maximum_entries_per_cycle,
+        )
         self.telegram = TelegramService(settings.telegram_bot_token, settings.telegram_chat_id)
         self.ollama = OllamaService(settings.ollama_base_url, settings.ollama_model)
         self.scheduler = SchedulerService()
@@ -241,6 +250,14 @@ class Kernel:
                 self._scheduled_validation_cycle,
             )
         )
+        if self.settings.auto_paper_enabled:
+            self.scheduler.add_job(
+                ScheduledJob(
+                    'auto_paper_cycle',
+                    self.settings.auto_paper_interval_seconds,
+                    self._scheduled_auto_paper,
+                )
+            )
         if self.settings.scanner_enabled:
             self.scheduler.add_job(
                 ScheduledJob(
@@ -265,6 +282,7 @@ class Kernel:
                 self._log.error("service_start_failed service=%s error=%s", service.name, exc)
         await self.watchdog.start()
         await self.portfolio.ensure_account()
+        await self.auto_paper.start()
         await self.context_backtest.start()
         await self.validation_campaign.start()
         await self.validation_cycle.start()
@@ -840,6 +858,27 @@ class Kernel:
             }
         return await self.runtime_processes.status()
 
+    async def auto_paper_status(self) -> dict[str, object]:
+        return await self.auto_paper.status()
+
+    async def auto_paper_run(self) -> dict[str, object]:
+        if self.settings.nexor_mode.value != 'PAPER':
+            raise RuntimeError(
+                'Execução automática permitida somente em PAPER'
+            )
+        result = await self.auto_paper.run_once()
+        await self.event_bus.publish(Event(
+            'execution.auto_paper_cycle',
+            {
+                'status': result['status'],
+                'opened_positions': result['opened_positions'],
+                'errors': result['errors'],
+                'live_execution_allowed': False,
+            },
+            'auto_paper',
+        ))
+        return result
+
     async def portfolio_status(self) -> dict[str, object]:
         return await self.portfolio.snapshot()
 
@@ -939,6 +978,15 @@ class Kernel:
         except Exception as exc:
             self._log.warning(
                 'scheduled_validation_cycle_failed error=%s',
+                exc,
+            )
+
+    async def _scheduled_auto_paper(self) -> None:
+        try:
+            await self.auto_paper_run()
+        except Exception as exc:
+            self._log.warning(
+                'scheduled_auto_paper_failed error=%s',
                 exc,
             )
 

@@ -510,6 +510,24 @@ def create_app(kernel: Any) -> FastAPI:
     ) -> dict[str, Any]:
         return await kernel.runtime_status()
 
+    @app.get("/api/execution/auto-paper/status")
+    async def auto_paper_status(
+        _: None = Depends(require_admin),
+    ) -> dict[str, Any]:
+        return await kernel.auto_paper_status()
+
+    @app.post("/api/execution/auto-paper/run")
+    async def auto_paper_run(
+        _: None = Depends(require_admin),
+    ) -> dict[str, Any]:
+        try:
+            return await kernel.auto_paper_run()
+        except RuntimeError as exc:
+            raise HTTPException(
+                status_code=409,
+                detail=str(exc),
+            ) from exc
+
     @app.get("/api/portfolio/status")
     async def portfolio_status() -> dict[str, Any]:
         return await kernel.portfolio_status()
