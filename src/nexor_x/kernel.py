@@ -16,6 +16,7 @@ from nexor_x.infrastructure.binance import BinanceMarketDataService
 from nexor_x.infrastructure.database import DatabaseService
 from nexor_x.infrastructure.telegram import TelegramService
 from nexor_x.notifications import TelegramEventNotifier
+from nexor_x.operations import LiveReadinessEvaluator
 from nexor_x.logging import logger
 from nexor_x.market.engine import MarketIntelligenceEngine
 from nexor_x.evidence import EvidenceEngine
@@ -234,6 +235,7 @@ class Kernel:
         self.scheduler = SchedulerService()
         self.watchdog = WatchdogService(self.registry)
         self.runtime_processes = None
+        self.live_readiness_evaluator = LiveReadinessEvaluator()
         self._started = False
         self._log = logger("kernel")
 
@@ -860,6 +862,40 @@ class Kernel:
         self, symbol: str | None = None,
     ) -> dict[str, object]:
         return await self.context_backtest.latest(symbol=symbol)
+
+    async def live_readiness_status(
+        self,
+    ) -> dict[str, object]:
+        credentials = await self.external_credentials_status()
+        recovery = await self.recovery_status()
+        supervisor = await self.operational_supervisor_status()
+        integration = await self.integration_health_status()
+        validation = await self.validation_snapshot_status()
+        campaign = await self.validation_campaign_status()
+        cycle = await self.validation_cycle_status()
+        runtime = await self.runtime_status()
+        report = self.live_readiness_evaluator.evaluate(
+            mode=self.settings.nexor_mode.value,
+            credentials=credentials,
+            recovery=recovery,
+            supervisor=supervisor,
+            integration=integration,
+            validation=validation,
+            campaign=campaign,
+            cycle=cycle,
+            runtime=runtime,
+        )
+        await self.event_bus.publish(Event(
+            "live.readiness_evaluated",
+            {
+                "status": report["status"],
+                "candidate_ready": report["candidate_ready"],
+                "live_allowed": False,
+                "blockers": report["blockers"],
+            },
+            "live_readiness",
+        ))
+        return report
 
     async def external_credentials_status(
         self,

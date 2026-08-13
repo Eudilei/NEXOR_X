@@ -22,6 +22,7 @@ class TelegramEventNotifier:
         "supervisor.evaluated",
         "validation.campaign_evaluated",
         "validation.cycle_completed",
+        "live.readiness_evaluated",
     )
 
     def __init__(
@@ -164,6 +165,17 @@ class TelegramEventNotifier:
                 "📈 CICLO DE VALIDAÇÃO\n"
                 f"Dias acumulados: {days}\n"
                 f"Fase: {phase}"
+            )
+
+        if topic == "live.readiness_evaluated":
+            ready = bool(payload.get("candidate_ready", False))
+            blockers = list(payload.get("blockers") or [])
+            blocker_text = ", ".join(str(item) for item in blockers[:6])
+            return (
+                "🧪 PRONTIDÃO PARA FUTURO LIVE\n"
+                f"Infra/validação: {'PRONTA' if ready else 'EM ANDAMENTO'}\n"
+                f"Bloqueios: {blocker_text or '-'}\n"
+                "Operação real: BLOQUEADA"
             )
 
         return None
