@@ -30,6 +30,7 @@ from nexor_x.scanner import MarketScannerService
 from nexor_x.position import PositionManagementService
 from nexor_x.position.service import PositionPolicy
 from nexor_x.evidence import EvidenceCollector
+from nexor_x.validation_cycle import ValidationCycleService
 from nexor_x.campaign import ValidationCampaignService
 from nexor_x.validation import ValidationSnapshotService
 from nexor_x.integration import IntegrationHealthService
@@ -176,6 +177,11 @@ class Kernel:
         self.validation_snapshot = ValidationSnapshotService(self.database)
         self.validation_campaign = ValidationCampaignService(self.database)
         self.evidence_collector = EvidenceCollector(self.database)
+        self.validation_cycle = ValidationCycleService(
+            self.database,
+            self.evidence_collector,
+            self.validation_campaign,
+        )
         self.scanner = MarketScannerService(
             self.database,
             self.quant_assessment,
@@ -206,6 +212,13 @@ class Kernel:
 
         self.event_bus.subscribe("*", self._persist_event)
         self.scheduler.add_job(ScheduledJob("kernel_heartbeat", 30.0, self._heartbeat))
+        self.scheduler.add_job(
+            ScheduledJob(
+                "validation_cycle",
+                900.0,
+                self._scheduled_validation_cycle,
+            )
+        )
         if self.settings.scanner_enabled:
             self.scheduler.add_job(
                 ScheduledJob(
@@ -231,6 +244,7 @@ class Kernel:
         await self.watchdog.start()
         await self.portfolio.ensure_account()
         await self.validation_campaign.start()
+        await self.validation_cycle.start()
         await self.validation_snapshot.start()
         await self.integration_health.start()
         await self.operational_supervisor.start()
@@ -745,6 +759,26 @@ class Kernel:
         ))
         return result
 
+    async def validation_cycle_status(
+        self,
+    ) -> dict[str, object]:
+        return await self.validation_cycle.status()
+
+    async def validation_cycle_run(
+        self,
+    ) -> dict[str, object]:
+        result = await self.validation_cycle.run_once()
+        await self.event_bus.publish(Event(
+            'validation.cycle_completed',
+            {
+                'days_running': result['days_running'],
+                'phase': result['campaign']['phase'],
+                'live_allowed': False,
+            },
+            'validation_cycle',
+        ))
+        return result
+
     async def validation_evidence_collect(
         self,
     ) -> dict[str, object]:
@@ -836,6 +870,15 @@ class Kernel:
 
     async def _heartbeat(self) -> None:
         await self.event_bus.publish(Event("system.heartbeat", source="kernel"))
+
+    async def _scheduled_validation_cycle(self) -> None:
+        try:
+            await self.validation_cycle_run()
+        except Exception as exc:
+            self._log.warning(
+                'scheduled_validation_cycle_failed error=%s',
+                exc,
+            )
 
     async def _scheduled_scan(self) -> None:
         try:

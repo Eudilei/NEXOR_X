@@ -473,6 +473,18 @@ def create_app(kernel: Any) -> FastAPI:
             body.model_dump()
         )
 
+    @app.get("/api/validation/cycle/status")
+    async def validation_cycle_status(
+        _: None = Depends(require_admin),
+    ) -> dict[str, Any]:
+        return await kernel.validation_cycle_status()
+
+    @app.post("/api/validation/cycle/run")
+    async def validation_cycle_run(
+        _: None = Depends(require_admin),
+    ) -> dict[str, Any]:
+        return await kernel.validation_cycle_run()
+
     @app.get("/api/validation/evidence")
     async def validation_evidence_collect(
         _: None = Depends(require_admin),
