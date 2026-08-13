@@ -140,6 +140,24 @@ class IntegrationHealthRequest(BaseModel):
     critical_test_failures: int = Field(ge=0, le=1000000)
     operational_incidents: int = Field(ge=0, le=1000000)
 
+class ValidationSnapshotRequest(BaseModel):
+    paper_trades: int = Field(ge=0, le=100000000)
+    profit_factor: float = Field(ge=0, le=1000)
+    expected_r: float = Field(ge=-100, le=100)
+    drawdown_pct: float = Field(ge=0, le=100)
+    recent_profit_factor: float = Field(ge=0, le=1000)
+    recent_expected_r: float = Field(ge=-100, le=100)
+    walk_forward_pass_ratio: float = Field(ge=0, le=1)
+    monte_carlo_ruin_probability: float = Field(ge=0, le=1)
+    brier_score_oos: float = Field(ge=0, le=1)
+    calibration_ece_oos: float = Field(ge=0, le=1)
+    integration_healthy: bool
+    recovery_ok: bool
+    supervisor_paper_allowed: bool
+    supervisor_testnet_allowed: bool
+    operational_incidents: int = Field(ge=0, le=1000000)
+    critical_test_failures: int = Field(ge=0, le=1000000)
+
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
 
@@ -407,6 +425,21 @@ def create_app(kernel: Any) -> FastAPI:
         _: None = Depends(require_admin),
     ) -> dict[str, Any]:
         return await kernel.integration_health_evaluate(
+            body.model_dump()
+        )
+
+    @app.get("/api/validation/status")
+    async def validation_snapshot_status(
+        _: None = Depends(require_admin),
+    ) -> dict[str, Any]:
+        return await kernel.validation_snapshot_status()
+
+    @app.post("/api/validation/evaluate")
+    async def validation_snapshot_evaluate(
+        body: ValidationSnapshotRequest,
+        _: None = Depends(require_admin),
+    ) -> dict[str, Any]:
+        return await kernel.validation_snapshot_evaluate(
             body.model_dump()
         )
 

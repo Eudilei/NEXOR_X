@@ -29,6 +29,7 @@ from nexor_x.execution import PaperExecutionService
 from nexor_x.scanner import MarketScannerService
 from nexor_x.position import PositionManagementService
 from nexor_x.position.service import PositionPolicy
+from nexor_x.validation import ValidationSnapshotService
 from nexor_x.integration import IntegrationHealthService
 from nexor_x.supervisor import OperationalSupervisorService
 from nexor_x.recovery import RecoveryGuardService
@@ -170,6 +171,7 @@ class Kernel:
         )
         self.operational_supervisor = OperationalSupervisorService(self.database)
         self.integration_health = IntegrationHealthService(self.database)
+        self.validation_snapshot = ValidationSnapshotService(self.database)
         self.scanner = MarketScannerService(
             self.database,
             self.quant_assessment,
@@ -224,6 +226,7 @@ class Kernel:
                 self._log.error("service_start_failed service=%s error=%s", service.name, exc)
         await self.watchdog.start()
         await self.portfolio.ensure_account()
+        await self.validation_snapshot.start()
         await self.integration_health.start()
         await self.operational_supervisor.start()
         await self.recovery_guard.start()
@@ -691,6 +694,27 @@ class Kernel:
                 'live_ready': False,
             },
             'integration_health',
+        ))
+        return result
+
+    async def validation_snapshot_status(
+        self,
+    ) -> dict[str, object]:
+        return await self.validation_snapshot.status()
+
+    async def validation_snapshot_evaluate(
+        self, payload: dict[str, object]
+    ) -> dict[str, object]:
+        result = await self.validation_snapshot.evaluate(payload)
+        await self.event_bus.publish(Event(
+            'validation.snapshot_evaluated',
+            {
+                'status': result['status'],
+                'paper_validation_ready': result['paper_validation_ready'],
+                'testnet_validation_ready': result['testnet_validation_ready'],
+                'live_validation_ready': False,
+            },
+            'validation_snapshot',
         ))
         return result
 
