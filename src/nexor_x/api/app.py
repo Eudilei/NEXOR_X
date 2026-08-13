@@ -498,6 +498,18 @@ def create_app(kernel: Any) -> FastAPI:
     ) -> dict[str, Any]:
         return await kernel.context_backtest_status(symbol)
 
+    @app.get("/api/validation/final-campaign")
+    async def final_validation_campaign_status(
+        _: None = Depends(require_admin),
+    ) -> dict[str, Any]:
+        return await kernel.final_validation_campaign_status()
+
+    @app.post("/api/validation/final-campaign/tick")
+    async def final_validation_campaign_tick(
+        _: None = Depends(require_admin),
+    ) -> dict[str, Any]:
+        return await kernel.final_validation_campaign_tick()
+
     @app.get("/api/operations/acceptance-audit")
     async def operational_acceptance_audit(
         _: None = Depends(require_admin),

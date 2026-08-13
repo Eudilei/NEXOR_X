@@ -27,6 +27,7 @@ from nexor_x.operations.entry_reservation import AtomicEntryReservationGuard
 from nexor_x.operations.entry_decision_trace import UnifiedEntryDecisionTrace
 from nexor_x.operations.operational_readiness_summary import UnifiedOperationalReadinessSummary
 from nexor_x.operations.operational_acceptance_audit import OperationalAcceptanceAudit
+from nexor_x.validation.final_campaign import FinalValidationCampaignController
 from nexor_x.logging import logger
 from nexor_x.market.engine import MarketIntelligenceEngine
 from nexor_x.evidence import EvidenceEngine
@@ -259,6 +260,9 @@ class Kernel:
         self.entry_decision_trace = UnifiedEntryDecisionTrace()
         self.operational_readiness_summary = UnifiedOperationalReadinessSummary()
         self.operational_acceptance_audit = OperationalAcceptanceAudit()
+        self.final_validation_campaign = FinalValidationCampaignController(
+            state_path="data/final_validation_campaign.json"
+        )
         self.entry_reservation_guard = AtomicEntryReservationGuard(
             state_path="data/entry_reservation_state.json"
         )
@@ -913,6 +917,19 @@ class Kernel:
         self, symbol: str | None = None,
     ) -> dict[str, object]:
         return await self.context_backtest.latest(symbol=symbol)
+
+    async def final_validation_campaign_status(
+        self,
+    ) -> dict[str, object]:
+        return self.final_validation_campaign.status()
+
+    async def final_validation_campaign_tick(
+        self,
+    ) -> dict[str, object]:
+        audit = await self.operational_acceptance_audit()
+        return self.final_validation_campaign.record(
+            audit=audit,
+        )
 
     async def operational_acceptance_audit(
         self,

@@ -1,3 +1,4 @@
+from .final_campaign import FinalValidationCampaignController, FinalValidationCampaignPolicy
 from .engine import ValidationSnapshotEngine, ValidationSnapshotInput, ValidationSnapshotReport
 from .service import ValidationSnapshotService
 
