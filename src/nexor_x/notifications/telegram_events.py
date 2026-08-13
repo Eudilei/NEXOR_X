@@ -25,6 +25,7 @@ class TelegramEventNotifier:
         "live.readiness_evaluated",
         "live.certification_evaluated",
         "operations.performance_degradation_evaluated",
+        "execution.entry_blocked_degradation",
     )
 
     def __init__(
@@ -167,6 +168,17 @@ class TelegramEventNotifier:
                 "📈 CICLO DE VALIDAÇÃO\n"
                 f"Dias acumulados: {days}\n"
                 f"Fase: {phase}"
+            )
+
+        if topic == "execution.entry_blocked_degradation":
+            reasons = list(payload.get("hard_reasons") or [])
+            reason_text = ", ".join(str(item) for item in reasons[:6])
+            return (
+                "⛔ NOVA ENTRADA BLOQUEADA\n"
+                f"Ação: {payload.get('action', '-')}\n"
+                f"Estado: {payload.get('state', 'BLOCKED')}\n"
+                f"Motivos: {reason_text or '-'}\n"
+                "Posições abertas continuam protegidas"
             )
 
         if topic == "operations.performance_degradation_evaluated":

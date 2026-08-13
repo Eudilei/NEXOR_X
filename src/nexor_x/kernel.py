@@ -19,6 +19,7 @@ from nexor_x.notifications import TelegramEventNotifier
 from nexor_x.operations import LiveReadinessEvaluator
 from nexor_x.operations.live_certification import LiveCertificationEvaluator
 from nexor_x.operations.performance_degradation import PerformanceDegradationGuard
+from nexor_x.operations.entry_admission import EntryAdmissionController
 from nexor_x.logging import logger
 from nexor_x.market.engine import MarketIntelligenceEngine
 from nexor_x.evidence import EvidenceEngine
@@ -240,6 +241,7 @@ class Kernel:
         self.live_readiness_evaluator = LiveReadinessEvaluator()
         self.live_certification_evaluator = LiveCertificationEvaluator()
         self.performance_degradation_guard = PerformanceDegradationGuard()
+        self.entry_admission_controller = EntryAdmissionController()
         self._started = False
         self._log = logger("kernel")
 
@@ -640,6 +642,11 @@ class Kernel:
     async def testnet_order_create(
         self, payload: dict[str, object]
     ) -> dict[str, object]:
+        reduce_only = bool(payload.get("reduce_only", False))
+        await self.require_entry_admission(
+            action="TESTNET_CREATE",
+            reduce_only=reduce_only,
+        )
         if not await self.recovery_guard.allows_testnet_orders():
             raise RuntimeError(
                 'TESTNET orders locked: run recovery reconciliation first'
@@ -650,7 +657,7 @@ class Kernel:
             order_type=OrderType(str(payload['order_type']).upper()),
             quantity=float(payload['quantity']),
             price=(None if payload.get('price') is None else float(payload['price'])),
-            reduce_only=bool(payload.get('reduce_only', False)),
+            reduce_only=reduce_only,
             client_order_id=(
                 None if not payload.get('client_order_id')
                 else str(payload['client_order_id'])
@@ -867,6 +874,50 @@ class Kernel:
     ) -> dict[str, object]:
         return await self.context_backtest.latest(symbol=symbol)
 
+    async def entry_admission_status(
+        self,
+        *,
+        action: str = "NEW_ENTRY",
+        reduce_only: bool = False,
+    ) -> dict[str, object]:
+        degradation = await self.performance_degradation_status()
+        report = self.entry_admission_controller.evaluate(
+            degradation=degradation,
+            action=action,
+            reduce_only=reduce_only,
+        )
+        if not report["allowed"]:
+            await self.event_bus.publish(Event(
+                "execution.entry_blocked_degradation",
+                {
+                    "action": report["action"],
+                    "state": report["state"],
+                    "reason": report["reason"],
+                    "hard_reasons": report["hard_reasons"],
+                    "live_allowed": False,
+                },
+                "entry_admission_guard",
+            ))
+        return report
+
+    async def require_entry_admission(
+        self,
+        *,
+        action: str,
+        reduce_only: bool = False,
+    ) -> dict[str, object]:
+        report = await self.entry_admission_status(
+            action=action,
+            reduce_only=reduce_only,
+        )
+        if report["allowed"]:
+            return report
+        reasons = list(report.get("hard_reasons") or [])
+        raise RuntimeError(
+            "New entry blocked by performance degradation: "
+            + ", ".join(str(item) for item in reasons or ["blocked"])
+        )
+
     async def performance_degradation_status(
         self,
     ) -> dict[str, object]:
@@ -1061,6 +1112,10 @@ class Kernel:
 
 
     async def paper_open(self, symbol: str) -> dict[str, object]:
+        await self.require_entry_admission(
+            action="PAPER_OPEN",
+            reduce_only=False,
+        )
         market = await self.market_state(symbol)
         readiness = await self.trading_readiness(symbol)
         portfolio = await self.portfolio.snapshot()
