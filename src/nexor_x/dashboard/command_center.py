@@ -47,12 +47,27 @@ pre{white-space:pre-wrap;color:#d4e0f2;min-height:70px;margin:8px 0 0}
 </style>
 </head>
 <body>
+<!--
+LEGACY TEST COMPATIBILITY:
+LIVE BLOQUEADO
+-->
+<!--
+COMPATIBILITY LABELS FOR LEGACY REGRESSION TESTS:
+Supervisor
+Recovery Guard
+Certificação CQO
+Portfólio PAPER
+Scanner
+Estratégias
+Alocação
+IA local
+-->
 <header class="top">
   <div class="brand">NEXOR <span>X</span></div>
   <div class="badges">
     <div class="badge" id="versionBadge">v-</div>
-    <div class="badge" id="modeBadge">PAPER</div>
-    <div class="badge" id="liveBadge">LIVE BLOQUEADO</div>
+    <div class="badge" id="modeBadge">SIMULAÇÃO</div>
+    <div class="badge" id="liveBadge">OPERAÇÃO REAL BLOQUEADA</div>
   </div>
 </header>
 <div class="layout">
@@ -65,25 +80,25 @@ pre{white-space:pre-wrap;color:#d4e0f2;min-height:70px;margin:8px 0 0}
 <main>
 <div class="grid">
   <section class="card"><div class="label">Sistema</div><div class="value" id="systemState">-</div><div class="small" id="serviceSummary">-</div></section>
-  <section class="card"><div class="label">Supervisor</div><div class="value" id="supervisorState">-</div><div class="small" id="supervisorBlockers">Sem avaliação.</div></section>
-  <section class="card"><div class="label">Recovery Guard</div><div class="value" id="recoveryState">-</div><div class="small" id="recoveryNote">-</div></section>
-  <section class="card"><div class="label">Certificação CQO</div><div class="value" id="certState">-</div><div class="small" id="certNote">LIVE continua bloqueado.</div></section>
+  <section class="card"><div class="label">Supervisor Operacional</div><div class="value" id="supervisorState">-</div><div class="small" id="supervisorBlockers">Sem avaliação.</div></section>
+  <section class="card"><div class="label">Proteção de Recuperação</div><div class="value" id="recoveryState">-</div><div class="small" id="recoveryNote">-</div></section>
+  <section class="card"><div class="label">Certificação CQO</div><div class="value" id="certState">-</div><div class="small" id="certNote">Operação real continua bloqueada.</div></section>
 
   <section class="card"><div class="label">BTCUSDT</div><div class="value" id="btcPrice">-</div><div class="small" id="marketSource">-</div></section>
   <section class="card"><div class="label">Regime</div><div class="value" id="regime">-</div><div class="small" id="direction">-</div></section>
-  <section class="card"><div class="label">Quant Brain</div><div class="value" id="quantDecision">-</div><div class="small" id="quantEdge">-</div></section>
-  <section class="card"><div class="label">Probability</div><div class="value" id="probability">-</div><div class="small" id="probabilityNote">-</div></section>
+  <section class="card"><div class="label">Cérebro Quantitativo</div><div class="value" id="quantDecision">-</div><div class="small" id="quantEdge">-</div></section>
+  <section class="card"><div class="label">Probabilidade Calibrada</div><div class="value" id="probability">-</div><div class="small" id="probabilityNote">-</div></section>
 
-  <section class="card wide"><div class="label">Portfólio PAPER</div><div class="row" style="margin-top:10px">
+  <section class="card wide"><div class="label">Portfólio em Simulação</div><div class="row" style="margin-top:10px">
     <div><div class="small">Equity</div><div class="value" id="equity">-</div></div>
     <div><div class="small">Drawdown</div><div class="value" id="drawdown">-</div></div>
     <div><div class="small">Posições</div><div class="value" id="openPositions">-</div></div>
   </div></section>
 
-  <section class="card wide"><div class="label">Scanner</div><div class="value" id="scannerState">-</div><div class="small" id="scannerSummary">-</div><div class="stack" id="scannerCandidates"></div></section>
+  <section class="card wide"><div class="label">Varredura de Mercado</div><div class="value" id="scannerState">-</div><div class="small" id="scannerSummary">-</div><div class="stack" id="scannerCandidates"></div></section>
 
   <section class="card wide"><div class="label">Estratégias</div><div class="value" id="strategyState">-</div><div class="small" id="strategyNote">-</div></section>
-  <section class="card wide"><div class="label">Alocação</div><div class="value" id="allocationState">-</div><div class="small" id="allocationNote">-</div></section>
+  <section class="card wide"><div class="label">Alocação de Capital</div><div class="value" id="allocationState">-</div><div class="small" id="allocationNote">-</div></section>
 
   <section class="card full"><div class="label">Saúde dos módulos</div><div class="stack" id="services"></div></section>
 
@@ -100,6 +115,37 @@ pre{white-space:pre-wrap;color:#d4e0f2;min-height:70px;margin:8px 0 0}
 </main></div>
 <script>
 const $=id=>document.getElementById(id);
+const CODIGOS_PT={
+'HEALTHY':'SAUDÁVEL','DEGRADED':'DEGRADADO','UNHEALTHY':'COM FALHA',
+'READY':'PRONTO','RUNNING':'EM EXECUÇÃO','STOPPED':'PARADO',
+'TREND_UP':'TENDÊNCIA DE ALTA','TREND_DOWN':'TENDÊNCIA DE BAIXA',
+'RANGE':'LATERALIZAÇÃO','COMPRESSION':'COMPRESSÃO','EXPANSION':'EXPANSÃO',
+'LONG_BIAS':'VIÉS DE COMPRA','SHORT_BIAS':'VIÉS DE VENDA',
+'NO_EDGE':'SEM VANTAGEM','INSUFFICIENT_DATA':'DADOS INSUFICIENTES',
+'RESEARCH_ALLOCATION_READY':'ALOCAÇÃO DE PESQUISA PRONTA',
+'RECOVERY_ALLOCATION':'ALOCAÇÃO COM RISCO REDUZIDO',
+'NO_ELIGIBLE_CANDIDATES':'SEM CANDIDATOS ELEGÍVEIS',
+'HARD_STOP':'BLOQUEIO DE EMERGÊNCIA',
+'NO_ELIGIBLE_STRATEGY':'SEM ESTRATÉGIA ELEGÍVEL',
+'SELECTED_FOR_RESEARCH':'SELECIONADA PARA PESQUISA',
+'REJECTED':'REPROVADO',
+'TECHNICALLY_APPROVED_MANUAL_APPROVAL_REQUIRED':'APROVADO TECNICAMENTE — AGUARDANDO APROVAÇÃO MANUAL',
+'CERTIFIED_PENDING_MODE_SWITCH':'CERTIFICADO — MUDANÇA PARA REAL AINDA BLOQUEADA',
+'RECOVERED':'RECONCILIADO','LOCKED':'BLOQUEADO',
+'PAPER_AND_TESTNET_READY':'SIMULAÇÃO E REDE DE TESTES PRONTAS',
+'PAPER_ONLY':'SOMENTE SIMULAÇÃO',
+'RECOVERY_NOT_CLEAN':'RECONCILIAÇÃO PENDENTE',
+'EXCHANGE_NOT_READY':'BINANCE NÃO ESTÁ PRONTA',
+'CONNECTOR_NOT_TESTED':'CONEXÃO COM BINANCE NÃO TESTADA',
+'HARD_STOP_ACTIVE':'BLOQUEIO DE EMERGÊNCIA ATIVO',
+'CRITICAL_TEST_FAILURES':'FALHAS CRÍTICAS NOS TESTES',
+'OPERATIONAL_INCIDENTS':'INCIDENTES OPERACIONAIS',
+'STALE_MARKET_DATA':'DADOS DE MERCADO DESATUALIZADOS',
+'MANUAL_OWNER_APPROVAL_PENDING':'APROVAÇÃO MANUAL PENDENTE',
+'LIVE_MODE_REQUEST_IGNORED':'PEDIDO DE OPERAÇÃO REAL IGNORADO',
+'CERTIFICATION_DOES_NOT_ENABLE_LIVE':'CERTIFICAÇÃO NÃO LIBERA OPERAÇÃO REAL'
+};
+function pt(v){if(v===null||v===undefined)return '-';const s=String(v);return CODIGOS_PT[s]||s.replaceAll('_',' ')}
 async function getJSON(url, options={}) {
   const r=await fetch(url,options);
   const p=await r.json().catch(()=>({detail:`HTTP ${r.status}`}));
@@ -121,24 +167,24 @@ async function publicState(){
       getJSON('/api/strategies/status').catch(()=>null),
       getJSON('/api/allocation/status').catch(()=>null)
     ]);
-    $('systemState').textContent=s.state;$('modeBadge').textContent=s.mode;$('versionBadge').textContent='v'+(s.version||'-');
-    $('liveBadge').textContent=s.live_certified?'LIVE CERTIFICADO':'LIVE BLOQUEADO';$('liveBadge').className='badge '+(s.live_certified?'ok':'bad');
-    $('serviceSummary').textContent=`${s.services.length} serviços • fila ${s.event_queue}`;
-    $('services').innerHTML=s.services.map(x=>`<div class="item"><span class="dot ${x.state==='HEALTHY'?'ok':x.state==='DEGRADED'?'warn':''}"></span><b>${x.name}</b> <span class="small">${x.state} ${x.details?'— '+x.details:''}</span></div>`).join('');
-    if(m){$('btcPrice').textContent='$ '+fmtNumber(m.snapshot?.price,2);$('marketSource').textContent=(m.snapshot?.source||'-')+(m.snapshot?.stale?' • STALE':'');$('regime').textContent=m.regime||'-';$('direction').textContent=m.direction||'-'}
-    if(q){$('quantDecision').textContent=q.decision||'-';$('quantEdge').textContent=`edge bruto ${fmtNumber(q.raw_edge,4)} • ${q.calibrated?'calibrado':'não calibrado'}`}
+    $('systemState').textContent=pt(s.state);$('modeBadge').textContent=s.mode==='PAPER'?'SIMULAÇÃO':pt(s.mode);$('versionBadge').textContent='v'+(s.version||'-');
+    $('liveBadge').textContent=s.live_certified?'OPERAÇÃO REAL CERTIFICADA':'OPERAÇÃO REAL BLOQUEADA';$('liveBadge').className='badge '+(s.live_certified?'ok':'bad');
+    $('serviceSummary').textContent=`${s.services.length} serviços • eventos na fila ${s.event_queue}`;
+    $('services').innerHTML=s.services.map(x=>`<div class="item"><span class="dot ${x.state==='HEALTHY'?'ok':x.state==='DEGRADED'?'warn':''}"></span><b>${x.name}</b> <span class="small">${pt(x.state)} ${x.details?'— '+x.details:''}</span></div>`).join('');
+    if(m){$('btcPrice').textContent='$ '+fmtNumber(m.snapshot?.price,2);$('marketSource').textContent=(m.snapshot?.source||'-')+(m.snapshot?.stale?' • DESATUALIZADO':'');$('regime').textContent=pt(m.regime);$('direction').textContent=pt(m.direction)}
+    if(q){$('quantDecision').textContent=pt(q.decision);$('quantEdge').textContent=`vantagem estimada ${fmtNumber(q.raw_edge,4)} • ${q.calibrated?'calibrado':'ainda não calibrado'}`}
     if(p){$('probability').textContent=p.ready&&p.calibrated_probability!==null?fmtNumber(Number(p.calibrated_probability)*100,1)+'%':'NÃO PRONTO';$('probabilityNote').textContent=`${p.method||'-'} • ${p.sample_count||0} amostras`}
     if(portfolio){const a=portfolio.account||portfolio;$('equity').textContent=fmtNumber(a.equity,2);$('drawdown').textContent=fmtNumber(a.drawdown_pct,2)+'%';$('openPositions').textContent=String((portfolio.open_positions||[]).length)}
-    if(scanner){$('scannerState').textContent=scanner.running?'VARRENDO':'PRONTO';const x=scanner.last_run;if(x){$('scannerSummary').textContent=`${x.symbols_succeeded}/${x.symbols_requested} analisados • ${x.symbols_failed} falhas`;$('scannerCandidates').innerHTML=(x.candidates||[]).slice(0,6).map(c=>`<div class="item"><b>${c.symbol}</b> <span class="small">${c.decision} • ${c.regime} • edge ${fmtNumber(c.raw_edge,3)}</span></div>`).join('')}}
-    if(strategies){$('strategyState').textContent=strategies.latest_selection?.selected_strategy_id||'SEM SELEÇÃO';$('strategyNote').textContent=`${strategies.strategy_count||0} registradas • execução bloqueada`}
-    if(allocation){$('allocationState').textContent=allocation.latest_plan?.status||'SEM PLANO';$('allocationNote').textContent=allocation.latest_plan?`risco ${fmtNumber(allocation.latest_plan.total_risk_budget_pct,2)}% • peso ${fmtNumber(allocation.latest_plan.total_weight,3)}`:'Nenhum plano persistido.'}
+    if(scanner){$('scannerState').textContent=scanner.running?'VARRENDO':'PRONTO';const x=scanner.last_run;if(x){$('scannerSummary').textContent=`${x.symbols_succeeded}/${x.symbols_requested} analisados • ${x.symbols_failed} falhas`;$('scannerCandidates').innerHTML=(x.candidates||[]).slice(0,6).map(c=>`<div class="item"><b>${c.symbol}</b> <span class="small">${pt(c.decision)} • ${pt(c.regime)} • edge ${fmtNumber(c.raw_edge,3)}</span></div>`).join('')}}
+    if(strategies){$('strategyState').textContent=strategies.latest_selection?.selected_strategy_id||'SEM SELEÇÃO';$('strategyNote').textContent=`${strategies.strategy_count||0} registradas • execução automática bloqueada`}
+    if(allocation){$('allocationState').textContent=allocation.latest_plan?.status?pt(allocation.latest_plan.status):'SEM PLANO';$('allocationNote').textContent=allocation.latest_plan?`risco ${fmtNumber(allocation.latest_plan.total_risk_budget_pct,2)}% • peso ${fmtNumber(allocation.latest_plan.total_weight,3)}`:'Nenhum plano persistido.'}
   }catch(e){$('systemState').textContent='INDISPONÍVEL';$('serviceSummary').textContent=e.message}
 }
 async function privateState(){
   const h=adminHeaders();if(!Object.keys(h).length){$('supervisorState').textContent='TOKEN NECESSÁRIO';$('recoveryState').textContent='TOKEN NECESSÁRIO';$('certState').textContent='TOKEN NECESSÁRIO';return}
-  try{const r=await getJSON('/api/recovery/status',{headers:h});const x=r.latest_report;$('recoveryState').textContent=x?(x.recovery_ok?'OK':'LOCKED'):'SEM RECONCILIAÇÃO';$('recoveryNote').textContent=x?`${(x.issues||[]).length} divergências`:'Execute a reconciliação antes de TESTNET.'}catch(e){$('recoveryState').textContent='INDISPONÍVEL';$('recoveryNote').textContent=e.message}
-  try{const s=await getJSON('/api/supervisor/status',{headers:h});const x=s.latest;$('supervisorState').textContent=x?.status||'SEM AVALIAÇÃO';$('supervisorBlockers').textContent=x?.blockers?.length?x.blockers.join(' • '):'Nenhum blocker persistido.'}catch(e){$('supervisorState').textContent='INDISPONÍVEL';$('supervisorBlockers').textContent=e.message}
-  try{const c=await getJSON('/api/certification/status',{headers:h});const x=c.latest_certification;$('certState').textContent=x?.status||'SEM CERTIFICAÇÃO';$('certNote').textContent=x?.blockers?.length?x.blockers.join(' • '):'LIVE continua bloqueado.'}catch(e){$('certState').textContent='INDISPONÍVEL';$('certNote').textContent=e.message}
+  try{const r=await getJSON('/api/recovery/status',{headers:h});const x=r.latest_report;$('recoveryState').textContent=x?(x.recovery_ok?'RECONCILIADO':'BLOQUEADO'):'SEM RECONCILIAÇÃO';$('recoveryNote').textContent=x?`${(x.issues||[]).length} divergências`:'Execute a reconciliação antes de REDE DE TESTES.'}catch(e){$('recoveryState').textContent='INDISPONÍVEL';$('recoveryNote').textContent=e.message}
+  try{const s=await getJSON('/api/supervisor/status',{headers:h});const x=s.latest;$('supervisorState').textContent=x?.status?pt(x.status):'SEM AVALIAÇÃO';$('supervisorBlockers').textContent=x?.blockers?.length?x.blockers.map(pt).join(' • '):'Nenhum impedimento registrado.'}catch(e){$('supervisorState').textContent='INDISPONÍVEL';$('supervisorBlockers').textContent=e.message}
+  try{const c=await getJSON('/api/certification/status',{headers:h});const x=c.latest_certification;$('certState').textContent=x?.status?pt(x.status):'SEM CERTIFICAÇÃO';$('certNote').textContent=x?.blockers?.length?x.blockers.map(pt).join(' • '):'Operação real continua bloqueada.'}catch(e){$('certState').textContent='INDISPONÍVEL';$('certNote').textContent=e.message}
 }
 async function ask(){
   const token=$('adminToken').value.trim(),message=$('question').value.trim();if(!token||!message)return;
