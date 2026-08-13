@@ -22,6 +22,7 @@ from nexor_x.operations.performance_degradation import PerformanceDegradationGua
 from nexor_x.operations.entry_admission import EntryAdmissionController
 from nexor_x.operations.recovery_hysteresis import RecoveryHysteresisController
 from nexor_x.operations.post_recovery_probation import PostRecoveryProbationController
+from nexor_x.operations.probation_exposure_ramp import ProbationExposureRamp
 from nexor_x.logging import logger
 from nexor_x.market.engine import MarketIntelligenceEngine
 from nexor_x.evidence import EvidenceEngine
@@ -250,6 +251,7 @@ class Kernel:
         self.post_recovery_probation = PostRecoveryProbationController(
             state_path="data/entry_probation_state.json"
         )
+        self.probation_exposure_ramp = ProbationExposureRamp()
         self._started = False
         self._log = logger("kernel")
 
@@ -651,10 +653,21 @@ class Kernel:
         self, payload: dict[str, object]
     ) -> dict[str, object]:
         reduce_only = bool(payload.get("reduce_only", False))
-        await self.require_entry_admission(
+        admission = await self.require_entry_admission(
             action="TESTNET_CREATE",
             reduce_only=reduce_only,
         )
+        if not reduce_only and payload.get("quantity") is not None:
+            payload = dict(payload)
+            original_quantity = payload["quantity"]
+            payload["original_quantity"] = original_quantity
+            payload["quantity"] = self.probation_exposure_ramp.scale_quantity(
+                original_quantity,
+                float(admission.get("exposure_multiplier", 1.0)),
+            )
+            payload["exposure_multiplier"] = admission.get(
+                "exposure_multiplier", 1.0
+            )
         if not await self.recovery_guard.allows_testnet_orders():
             raise RuntimeError(
                 'TESTNET orders locked: run recovery reconciliation first'
@@ -882,6 +895,14 @@ class Kernel:
     ) -> dict[str, object]:
         return await self.context_backtest.latest(symbol=symbol)
 
+    async def probation_exposure_ramp_status(
+        self,
+    ) -> dict[str, object]:
+        probation = self.post_recovery_probation.status()
+        return self.probation_exposure_ramp.evaluate(
+            probation=probation, reduce_only=False
+        )
+
     async def post_recovery_probation_status(
         self,
     ) -> dict[str, object]:
@@ -927,6 +948,11 @@ class Kernel:
             ),
             "remaining_seconds": probation["remaining_seconds"],
         }
+        exposure = self.probation_exposure_ramp.evaluate(
+            probation=probation, reduce_only=reduce_only
+        )
+        report["exposure_ramp"] = exposure
+        report["exposure_multiplier"] = exposure["exposure_multiplier"]
         report["recovery_hysteresis"] = {
             "raw_state": recovery["raw_state"],
             "effective_state": recovery["effective_state"],
@@ -1000,6 +1026,11 @@ class Kernel:
                     ),
                     "remaining_seconds": probation["remaining_seconds"],
                 }
+                exposure = self.probation_exposure_ramp.evaluate(
+                    probation=probation, reduce_only=False
+                )
+                report["exposure_ramp"] = exposure
+                report["exposure_multiplier"] = exposure["exposure_multiplier"]
             return report
         reasons = list(report.get("hard_reasons") or [])
         raise RuntimeError(
