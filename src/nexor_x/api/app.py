@@ -498,6 +498,12 @@ def create_app(kernel: Any) -> FastAPI:
     ) -> dict[str, Any]:
         return await kernel.context_backtest_status(symbol)
 
+    @app.get("/api/operations/entry-decision-trace")
+    async def unified_entry_decision_trace(
+        _: None = Depends(require_admin),
+    ) -> dict[str, Any]:
+        return await kernel.unified_entry_decision_trace()
+
     @app.get("/api/operations/entry-reservation")
     async def entry_reservation_status(
         _: None = Depends(require_admin),

@@ -106,6 +106,27 @@ class RecoveryHysteresisController:
             "evaluated_at": now.isoformat(),
         }
 
+    def status(
+        self,
+        *,
+        now: datetime | None = None,
+    ) -> dict[str, Any]:
+        now = self._utc(now)
+        return {
+            "latched": bool(self._state["latched"]),
+            "blocked_since": self._state.get("blocked_since"),
+            "healthy_checks": int(self._state.get("healthy_checks", 0)),
+            "required_healthy_checks": self.policy.required_healthy_checks,
+            "cooldown_seconds": self.policy.cooldown_seconds,
+            "elapsed_since_block_seconds": self._elapsed_seconds(now),
+            "min_healthy_check_interval_seconds": (
+                self.policy.min_healthy_check_interval_seconds
+            ),
+            "read_only": True,
+            "live_allowed": False,
+            "evaluated_at": now.isoformat(),
+        }
+
     def _can_count_healthy_check(self, now: datetime) -> bool:
         last = self._parse_dt(self._state.get("last_healthy_check_at"))
         if last is None:

@@ -1,3 +1,4 @@
+from .entry_decision_trace import UnifiedEntryDecisionTrace
 from .entry_reservation import AtomicEntryReservationGuard, EntryReservationPolicy
 from .probation_exposure_ramp import ProbationExposureRamp, ProbationExposureRampPolicy
 from .post_recovery_probation import PostRecoveryProbationController, PostRecoveryProbationPolicy
@@ -19,4 +20,5 @@ __all__ = ["ProbationExposureRamp", "ProbationExposureRampPolicy", "LiveReadines
     "PostRecoveryProbationPolicy",
     "AtomicEntryReservationGuard",
     "EntryReservationPolicy",
+    "UnifiedEntryDecisionTrace",
 ]

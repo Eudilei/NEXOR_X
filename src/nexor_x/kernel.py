@@ -24,6 +24,7 @@ from nexor_x.operations.recovery_hysteresis import RecoveryHysteresisController
 from nexor_x.operations.post_recovery_probation import PostRecoveryProbationController
 from nexor_x.operations.probation_exposure_ramp import ProbationExposureRamp
 from nexor_x.operations.entry_reservation import AtomicEntryReservationGuard
+from nexor_x.operations.entry_decision_trace import UnifiedEntryDecisionTrace
 from nexor_x.logging import logger
 from nexor_x.market.engine import MarketIntelligenceEngine
 from nexor_x.evidence import EvidenceEngine
@@ -253,6 +254,7 @@ class Kernel:
             state_path="data/entry_probation_state.json"
         )
         self.probation_exposure_ramp = ProbationExposureRamp()
+        self.entry_decision_trace = UnifiedEntryDecisionTrace()
         self.entry_reservation_guard = AtomicEntryReservationGuard(
             state_path="data/entry_reservation_state.json"
         )
@@ -907,6 +909,25 @@ class Kernel:
         self, symbol: str | None = None,
     ) -> dict[str, object]:
         return await self.context_backtest.latest(symbol=symbol)
+
+    async def unified_entry_decision_trace(
+        self,
+    ) -> dict[str, object]:
+        degradation = await self.performance_degradation_status()
+        recovery = self.entry_recovery_guard.status()
+        probation = self.post_recovery_probation.status()
+        exposure = self.probation_exposure_ramp.evaluate(
+            probation=probation,
+            reduce_only=False,
+        )
+        reservation = self.entry_reservation_guard.status()
+        return self.entry_decision_trace.build(
+            degradation=degradation,
+            recovery=recovery,
+            probation=probation,
+            exposure=exposure,
+            reservation=reservation,
+        )
 
     async def entry_reservation_status(
         self,
