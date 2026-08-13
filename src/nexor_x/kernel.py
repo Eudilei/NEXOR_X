@@ -17,6 +17,7 @@ from nexor_x.infrastructure.database import DatabaseService
 from nexor_x.infrastructure.telegram import TelegramService
 from nexor_x.notifications import TelegramEventNotifier
 from nexor_x.operations import LiveReadinessEvaluator
+from nexor_x.operations.live_certification import LiveCertificationEvaluator
 from nexor_x.logging import logger
 from nexor_x.market.engine import MarketIntelligenceEngine
 from nexor_x.evidence import EvidenceEngine
@@ -236,6 +237,7 @@ class Kernel:
         self.watchdog = WatchdogService(self.registry)
         self.runtime_processes = None
         self.live_readiness_evaluator = LiveReadinessEvaluator()
+        self.live_certification_evaluator = LiveCertificationEvaluator()
         self._started = False
         self._log = logger("kernel")
 
@@ -862,6 +864,29 @@ class Kernel:
         self, symbol: str | None = None,
     ) -> dict[str, object]:
         return await self.context_backtest.latest(symbol=symbol)
+
+    async def live_certification_status(
+        self,
+    ) -> dict[str, object]:
+        readiness = await self.live_readiness_status()
+        cycle = await self.validation_cycle_status()
+        runtime = await self.runtime_status()
+        report = self.live_certification_evaluator.evaluate(
+            readiness=readiness,
+            validation_cycle=cycle,
+            runtime=runtime,
+        )
+        await self.event_bus.publish(Event(
+            "live.certification_evaluated",
+            {
+                "status": report["status"],
+                "evidence_certified": report["evidence_certified"],
+                "live_allowed": False,
+                "blockers": report["blockers"],
+            },
+            "live_certification",
+        ))
+        return report
 
     async def live_readiness_status(
         self,
