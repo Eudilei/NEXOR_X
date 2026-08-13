@@ -29,6 +29,7 @@ from nexor_x.execution import PaperExecutionService
 from nexor_x.scanner import MarketScannerService
 from nexor_x.position import PositionManagementService
 from nexor_x.position.service import PositionPolicy
+from nexor_x.evidence import EvidenceCollector
 from nexor_x.campaign import ValidationCampaignService
 from nexor_x.validation import ValidationSnapshotService
 from nexor_x.integration import IntegrationHealthService
@@ -174,6 +175,7 @@ class Kernel:
         self.integration_health = IntegrationHealthService(self.database)
         self.validation_snapshot = ValidationSnapshotService(self.database)
         self.validation_campaign = ValidationCampaignService(self.database)
+        self.evidence_collector = EvidenceCollector(self.database)
         self.scanner = MarketScannerService(
             self.database,
             self.quant_assessment,
@@ -740,6 +742,23 @@ class Kernel:
                 'live_allowed': False,
             },
             'validation_campaign',
+        ))
+        return result
+
+    async def validation_evidence_collect(
+        self,
+    ) -> dict[str, object]:
+        snapshot = await self.evidence_collector.collect()
+        result = snapshot.to_dict()
+        await self.event_bus.publish(Event(
+            'validation.evidence_collected',
+            {
+                'paper_trades': result['paper_trades'],
+                'integration_healthy': result['integration_healthy'],
+                'recovery_ok': result['recovery_ok'],
+                'live_allowed': False,
+            },
+            'evidence_collector',
         ))
         return result
 

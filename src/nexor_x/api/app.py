@@ -473,6 +473,12 @@ def create_app(kernel: Any) -> FastAPI:
             body.model_dump()
         )
 
+    @app.get("/api/validation/evidence")
+    async def validation_evidence_collect(
+        _: None = Depends(require_admin),
+    ) -> dict[str, Any]:
+        return await kernel.validation_evidence_collect()
+
     @app.get("/api/portfolio/status")
     async def portfolio_status() -> dict[str, Any]:
         return await kernel.portfolio_status()
