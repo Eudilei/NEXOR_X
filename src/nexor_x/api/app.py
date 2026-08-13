@@ -504,6 +504,12 @@ def create_app(kernel: Any) -> FastAPI:
     ) -> dict[str, Any]:
         return await kernel.external_credentials_status()
 
+    @app.get("/api/system/runtime")
+    async def runtime_status(
+        _: None = Depends(require_admin),
+    ) -> dict[str, Any]:
+        return await kernel.runtime_status()
+
     @app.get("/api/portfolio/status")
     async def portfolio_status() -> dict[str, Any]:
         return await kernel.portfolio_status()

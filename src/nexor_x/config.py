@@ -42,6 +42,11 @@ class Settings(BaseSettings):
     pretrade_backtest_minimum_walk_forward_pass_ratio: float = 0.60
     pretrade_backtest_folds: int = 3
 
+    ollama_autostart: bool = True
+    ollama_command: str = "ollama"
+    cloudflared_enabled: bool = True
+    cloudflared_command: str = "cloudflared"
+
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", extra="ignore", case_sensitive=False
     )

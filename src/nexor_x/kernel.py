@@ -214,6 +214,7 @@ class Kernel:
         self.ollama = OllamaService(settings.ollama_base_url, settings.ollama_model)
         self.scheduler = SchedulerService()
         self.watchdog = WatchdogService(self.registry)
+        self.runtime_processes = None
         self._started = False
         self._log = logger("kernel")
 
@@ -827,6 +828,17 @@ class Kernel:
         self,
     ) -> dict[str, object]:
         return await self.external_credentials.status()
+
+    async def runtime_status(self) -> dict[str, object]:
+        if self.runtime_processes is None:
+            return {
+                'local_panel_url': f'http://127.0.0.1:{self.settings.nexor_port}',
+                'public_panel_url': None,
+                'ollama': {'running': False, 'details': 'Gerenciador não anexado.'},
+                'cloudflared': {'running': False, 'details': 'Gerenciador não anexado.'},
+                'live_enabled': False,
+            }
+        return await self.runtime_processes.status()
 
     async def portfolio_status(self) -> dict[str, object]:
         return await self.portfolio.snapshot()
