@@ -29,6 +29,7 @@ from nexor_x.execution import PaperExecutionService
 from nexor_x.scanner import MarketScannerService
 from nexor_x.position import PositionManagementService
 from nexor_x.position.service import PositionPolicy
+from nexor_x.secrets import ExternalCredentialsStatusService
 from nexor_x.pretrade_backtest import (
     ContextBacktestPolicy,
     ContextBacktestService,
@@ -201,6 +202,7 @@ class Kernel:
             self.evidence_collector,
             self.validation_campaign,
         )
+        self.external_credentials = ExternalCredentialsStatusService(settings)
         self.scanner = MarketScannerService(
             self.database,
             self.quant_assessment,
@@ -820,6 +822,11 @@ class Kernel:
         self, symbol: str | None = None,
     ) -> dict[str, object]:
         return await self.context_backtest.latest(symbol=symbol)
+
+    async def external_credentials_status(
+        self,
+    ) -> dict[str, object]:
+        return await self.external_credentials.status()
 
     async def portfolio_status(self) -> dict[str, object]:
         return await self.portfolio.snapshot()

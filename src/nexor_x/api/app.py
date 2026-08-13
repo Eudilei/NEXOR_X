@@ -498,6 +498,12 @@ def create_app(kernel: Any) -> FastAPI:
     ) -> dict[str, Any]:
         return await kernel.context_backtest_status(symbol)
 
+    @app.get("/api/system/credentials")
+    async def external_credentials_status(
+        _: None = Depends(require_admin),
+    ) -> dict[str, Any]:
+        return await kernel.external_credentials_status()
+
     @app.get("/api/portfolio/status")
     async def portfolio_status() -> dict[str, Any]:
         return await kernel.portfolio_status()

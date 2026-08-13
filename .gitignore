@@ -20,3 +20,7 @@ data/*.db-*
 *.egg-info/
 *.db-shm
 *.db-wal
+
+# NEXOR X secrets
+.env.local
+.env.*.local
