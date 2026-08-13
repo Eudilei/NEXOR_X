@@ -1,3 +1,4 @@
+from .operational_acceptance_audit import OperationalAcceptanceAudit
 from .operational_readiness_summary import UnifiedOperationalReadinessSummary
 from .entry_decision_trace import UnifiedEntryDecisionTrace
 from .entry_reservation import AtomicEntryReservationGuard, EntryReservationPolicy
@@ -23,4 +24,5 @@ __all__ = ["ProbationExposureRamp", "ProbationExposureRampPolicy", "LiveReadines
     "EntryReservationPolicy",
     "UnifiedEntryDecisionTrace",
     "UnifiedOperationalReadinessSummary",
+    "OperationalAcceptanceAudit",
 ]

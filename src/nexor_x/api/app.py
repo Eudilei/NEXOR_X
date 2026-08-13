@@ -498,6 +498,12 @@ def create_app(kernel: Any) -> FastAPI:
     ) -> dict[str, Any]:
         return await kernel.context_backtest_status(symbol)
 
+    @app.get("/api/operations/acceptance-audit")
+    async def operational_acceptance_audit(
+        _: None = Depends(require_admin),
+    ) -> dict[str, Any]:
+        return await kernel.operational_acceptance_audit()
+
     @app.get("/api/operations/readiness-summary")
     async def operational_readiness_summary(
         _: None = Depends(require_admin),
