@@ -30,6 +30,7 @@ from nexor_x.operations.operational_acceptance_audit import OperationalAcceptanc
 from nexor_x.validation.final_campaign import FinalValidationCampaignController
 from nexor_x.validation.final_completion import FinalTechnicalCompletionGate
 from nexor_x.validation.final_dashboard import FinalTechnicalDashboardSnapshot
+from nexor_x.validation.release_candidate import ReleaseCandidateAudit
 from nexor_x.logging import logger
 from nexor_x.market.engine import MarketIntelligenceEngine
 from nexor_x.evidence import EvidenceEngine
@@ -264,6 +265,7 @@ class Kernel:
         self.operational_acceptance_audit = OperationalAcceptanceAudit()
         self.final_technical_completion = FinalTechnicalCompletionGate()
         self.final_dashboard_snapshot = FinalTechnicalDashboardSnapshot()
+        self.release_candidate_audit = ReleaseCandidateAudit()
         self.final_validation_campaign = FinalValidationCampaignController(
             state_path="data/final_validation_campaign.json"
         )
@@ -921,6 +923,34 @@ class Kernel:
         self, symbol: str | None = None,
     ) -> dict[str, object]:
         return await self.context_backtest.latest(symbol=symbol)
+
+    async def release_candidate_audit_status(
+        self,
+    ) -> dict[str, object]:
+        acceptance = await self.operational_acceptance_audit()
+        final_snapshot = await self.final_dashboard_snapshot_status()
+        components = {
+            "live_readiness": hasattr(self, "live_readiness"),
+            "live_certification": hasattr(self, "live_certification"),
+            "performance_degradation": hasattr(self, "performance_degradation_guard"),
+            "recovery_hysteresis": hasattr(self, "entry_recovery_guard"),
+            "entry_admission": hasattr(self, "entry_admission_controller"),
+            "post_recovery_probation": hasattr(self, "post_recovery_probation"),
+            "exposure_ramp": hasattr(self, "probation_exposure_ramp"),
+            "entry_reservation": hasattr(self, "entry_reservation_guard"),
+            "entry_decision_trace": hasattr(self, "entry_decision_trace"),
+            "operational_readiness_summary": hasattr(self, "operational_readiness_summary"),
+            "operational_acceptance_audit": hasattr(self, "operational_acceptance_audit"),
+            "final_validation_campaign": hasattr(self, "final_validation_campaign"),
+            "final_technical_completion": hasattr(self, "final_technical_completion"),
+            "final_dashboard_snapshot": hasattr(self, "final_dashboard_snapshot"),
+        }
+        return self.release_candidate_audit.evaluate(
+            acceptance=acceptance,
+            final_snapshot=final_snapshot,
+            component_presence=components,
+            version="0.56.0",
+        )
 
     async def final_dashboard_snapshot_status(
         self,

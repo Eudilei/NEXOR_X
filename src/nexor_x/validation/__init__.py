@@ -1,3 +1,4 @@
+from .release_candidate import ReleaseCandidateAudit
 from .final_dashboard import FinalTechnicalDashboardSnapshot
 from .final_completion import FinalTechnicalCompletionGate
 from .final_campaign import FinalValidationCampaignController, FinalValidationCampaignPolicy
