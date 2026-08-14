@@ -26,6 +26,7 @@ from nexor_x.operations.probation_exposure_ramp import ProbationExposureRamp
 from nexor_x.operations.entry_reservation import AtomicEntryReservationGuard
 from nexor_x.operations.entry_decision_trace import UnifiedEntryDecisionTrace
 from nexor_x.operations.filter_rigidity import FilterRigidityMonitor
+from nexor_x.operations.filter_decision_telemetry import FilterDecisionTelemetry
 from nexor_x.operations.operational_readiness_summary import UnifiedOperationalReadinessSummary
 from nexor_x.operations.operational_acceptance_audit import OperationalAcceptanceAudit
 from nexor_x.validation.final_campaign import FinalValidationCampaignController
@@ -262,6 +263,7 @@ class Kernel:
         )
         self.probation_exposure_ramp = ProbationExposureRamp()
         self.entry_decision_trace = UnifiedEntryDecisionTrace()
+        self.filter_decision_telemetry = FilterDecisionTelemetry()
         self.filter_rigidity_monitor = FilterRigidityMonitor(
             state_path="data/filter_rigidity_state.json"
         )
@@ -1043,13 +1045,18 @@ class Kernel:
             reduce_only=False,
         )
         reservation = self.entry_reservation_guard.status()
-        return self.entry_decision_trace.build(
+        trace = self.entry_decision_trace.build(
             degradation=degradation,
             recovery=recovery,
             probation=probation,
             exposure=exposure,
             reservation=reservation,
         )
+        self.filter_decision_telemetry.record_trace(
+            monitor=self.filter_rigidity_monitor,
+            trace=trace,
+        )
+        return trace
 
     async def entry_reservation_status(
         self,
