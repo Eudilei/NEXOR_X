@@ -32,6 +32,24 @@ async def test_paper_open_close_updates_equity(tmp_path: Path) -> None:
     assert fill.position_id is not None
     closed = await svc.close_position(fill.position_id, 101, "TEST")
     assert closed["net_pnl"] > 0
+    assert closed["pnl"] == closed["net_pnl"]
+    assert closed["realized_pnl"] == closed["net_pnl"]
+    assert closed["net_pnl"] == pytest.approx(
+        closed["gross_pnl"] - closed["total_fees"]
+    )
+    assert closed["total_fees"] == pytest.approx(
+        closed["entry_fee"] + closed["exit_fee"]
+    )
+    assert closed["pnl_basis"] == "NET_AFTER_FEES"
+    persisted = await db.fetchall(
+        "SELECT gross_pnl, entry_fee, exit_fee, total_fees, realized_pnl, pnl_basis "
+        "FROM portfolio_positions WHERE id=?",
+        (fill.position_id,),
+    )
+    assert persisted[0][0] == pytest.approx(closed["gross_pnl"])
+    assert persisted[0][3] == pytest.approx(closed["total_fees"])
+    assert persisted[0][4] == pytest.approx(closed["net_pnl"])
+    assert persisted[0][5] == "NET_AFTER_FEES"
     snap = await portfolio.snapshot()
     assert snap["open_positions"] == 0
     assert snap["equity"] > 100

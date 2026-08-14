@@ -64,7 +64,10 @@ CREATE TABLE IF NOT EXISTS portfolio_positions(
  entry_fee REAL NOT NULL DEFAULT 0.0,
  exit_price REAL,
  exit_fee REAL NOT NULL DEFAULT 0.0,
+ gross_pnl REAL NOT NULL DEFAULT 0.0,
+ total_fees REAL NOT NULL DEFAULT 0.0,
  realized_pnl REAL NOT NULL DEFAULT 0.0,
+ pnl_basis TEXT NOT NULL DEFAULT 'NET_AFTER_FEES',
  close_reason TEXT,
  initial_stop_price REAL,
  highest_price REAL,
@@ -189,6 +192,9 @@ class DatabaseService(BaseService):
             "lowest_price": "REAL",
             "partial_taken": "INTEGER NOT NULL DEFAULT 0",
             "partial_realized_pnl": "REAL NOT NULL DEFAULT 0.0",
+            "gross_pnl": "REAL NOT NULL DEFAULT 0.0",
+            "total_fees": "REAL NOT NULL DEFAULT 0.0",
+            "pnl_basis": "TEXT NOT NULL DEFAULT 'NET_AFTER_FEES'",
         }
         for name, ddl in migrations.items():
             if name not in existing:

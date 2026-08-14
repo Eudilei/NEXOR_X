@@ -140,6 +140,7 @@ class Kernel:
             slippage_rate=settings.paper_slippage_rate,
             stop_loss_pct=settings.paper_stop_loss_pct,
             max_notional_multiple=settings.leverage,
+            net_pnl_runtime=self.net_pnl_runtime,
         )
         self.position_management = PositionManagementService(
             self.database, self.paper_execution, PositionPolicy(

@@ -4,6 +4,7 @@ import asyncio
 from datetime import UTC, datetime
 from typing import Any
 
+from nexor_x.accounting.runtime_integration import NetPnLRuntimeAdapter
 from nexor_x.domain import OperatingMode
 from nexor_x.infrastructure.database import DatabaseService
 
@@ -25,6 +26,7 @@ class PaperExecutionService:
         slippage_rate: float,
         stop_loss_pct: float,
         max_notional_multiple: float,
+        net_pnl_runtime: NetPnLRuntimeAdapter | None = None,
     ) -> None:
         if not 0 <= fee_rate < 1 or not 0 <= slippage_rate < 1:
             raise ValueError("fee/slippage rates must be in [0, 1)")
@@ -37,6 +39,7 @@ class PaperExecutionService:
         self.slippage_rate = slippage_rate
         self.stop_loss_pct = stop_loss_pct
         self.max_notional_multiple = max_notional_multiple
+        self.net_pnl_runtime = net_pnl_runtime or NetPnLRuntimeAdapter()
         self._lock = asyncio.Lock()
 
     async def open_from_readiness(
@@ -138,7 +141,14 @@ class PaperExecutionService:
             gross = ((exit_price - float(entry_price)) if side == "LONG" else (float(entry_price) - exit_price)) * quantity_to_close
             exit_fee = abs(exit_price * quantity_to_close) * self.fee_rate
             allocated_entry_fee = float(entry_fee) * (quantity_to_close / quantity)
-            net = gross - allocated_entry_fee - exit_fee
+            normalized = self.net_pnl_runtime.normalize_closed_trade({
+                "gross_pnl": gross,
+                "entry_notional": float(entry_price) * quantity_to_close,
+                "exit_notional": exit_price * quantity_to_close,
+                "entry_fee": allocated_entry_fee,
+                "exit_fee": exit_fee,
+            })
+            net = float(normalized["net_pnl"])
             remaining = quantity - quantity_to_close
             now = datetime.now(UTC).isoformat()
             account_delta = gross - exit_fee
@@ -157,7 +167,13 @@ class PaperExecutionService:
             ])
         return {"position_id": position_id, "symbol": symbol, "side": side,
                 "quantity_closed": round(quantity_to_close, 12), "quantity_remaining": round(remaining, 12),
-                "exit_price": round(exit_price, 12), "net_pnl": round(net, 8),
+                "exit_price": round(exit_price, 12),
+                "gross_pnl": round(float(normalized["gross_pnl"]), 8),
+                "entry_fee": round(float(normalized["entry_fee"]), 8),
+                "exit_fee": round(float(normalized["exit_fee"]), 8),
+                "total_fees": round(float(normalized["total_fees"]), 8),
+                "net_pnl": round(net, 8), "pnl": round(net, 8),
+                "realized_pnl": round(net, 8), "pnl_basis": "NET_AFTER_FEES",
                 "reason": reason[:120], "live_order_sent": False}
 
     async def close_position(self, position_id: int, market_price: float, reason: str) -> dict[str, Any]:
@@ -176,15 +192,26 @@ class PaperExecutionService:
             entry_f = float(entry_price)
             exit_price = market_price * (1.0 - self.slippage_rate if side == "LONG" else 1.0 + self.slippage_rate)
             gross = (exit_price - entry_f) * quantity_f if side == "LONG" else (entry_f - exit_price) * quantity_f
-            exit_fee = abs(float(notional)) * self.fee_rate
-            net = gross - float(entry_fee) - exit_fee
+            exit_notional = abs(exit_price * quantity_f)
+            exit_fee = exit_notional * self.fee_rate
+            normalized = self.net_pnl_runtime.normalize_closed_trade({
+                "gross_pnl": gross,
+                "entry_notional": abs(float(notional)),
+                "exit_notional": exit_notional,
+                "entry_fee": float(entry_fee),
+                "exit_fee": exit_fee,
+            })
+            net = float(normalized["net_pnl"])
             now = datetime.now(UTC).isoformat()
             account_delta = gross - exit_fee
             await self.database.transaction([
                 (
                     """UPDATE portfolio_positions SET status='CLOSED', closed_at=?, exit_price=?,
-                    exit_fee=?, realized_pnl=?, close_reason=? WHERE id=? AND status='OPEN'""",
-                    (now, exit_price, exit_fee, net, reason[:120], position_id),
+                    exit_fee=?, gross_pnl=?, total_fees=?, realized_pnl=?, pnl_basis=?,
+                    close_reason=? WHERE id=? AND status='OPEN'""",
+                    (now, exit_price, float(normalized["exit_fee"]),
+                     float(normalized["gross_pnl"]), float(normalized["total_fees"]),
+                     net, "NET_AFTER_FEES", reason[:120], position_id),
                 ),
                 (
                     """UPDATE portfolio_accounts SET equity=equity+?, realized_pnl=realized_pnl+?,
@@ -197,9 +224,15 @@ class PaperExecutionService:
             "symbol": symbol,
             "side": side,
             "exit_price": round(exit_price, 12),
-            "gross_pnl": round(gross, 8),
-            "fees": round(float(entry_fee) + exit_fee, 8),
+            "gross_pnl": round(float(normalized["gross_pnl"]), 8),
+            "entry_fee": round(float(normalized["entry_fee"]), 8),
+            "exit_fee": round(float(normalized["exit_fee"]), 8),
+            "total_fees": round(float(normalized["total_fees"]), 8),
+            "fees": round(float(normalized["total_fees"]), 8),
             "net_pnl": round(net, 8),
+            "pnl": round(net, 8),
+            "realized_pnl": round(net, 8),
+            "pnl_basis": "NET_AFTER_FEES",
             "reason": reason[:120],
             "live_order_sent": False,
         }

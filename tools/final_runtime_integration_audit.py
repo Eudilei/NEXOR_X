@@ -168,6 +168,7 @@ def check_runtime_net_usage() -> dict[str, Any]:
         "src/nexor_x/trading/paper.py",
         "src/nexor_x/paper.py",
         "src/nexor_x/services/trading.py",
+        "src/nexor_x/execution/service.py",
     ]
 
     adapter_refs = []
