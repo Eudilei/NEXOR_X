@@ -15,10 +15,11 @@ class FeeModel:
     taker_rate: Decimal = Decimal("0.0005")
 
     def rate_for(self, liquidity: str) -> Decimal:
-        side = str(liquidity).strip().lower()
-        if side == "maker":
-            return self.maker_rate
-        return self.taker_rate
+        return (
+            self.maker_rate
+            if str(liquidity).strip().lower() == "maker"
+            else self.taker_rate
+        )
 
 
 @dataclass(frozen=True)
@@ -40,8 +41,6 @@ class NetPnLBreakdown:
 
 
 class NetPnLCalculator:
-    """Calcula PnL líquido preservando componentes para auditoria."""
-
     def __init__(self, fee_model: FeeModel | None = None) -> None:
         self.fee_model = fee_model or FeeModel()
 
@@ -70,7 +69,6 @@ class NetPnLCalculator:
             if exit_fee is not None
             else exit_n * self.fee_model.rate_for(exit_liquidity)
         )
-
         total = resolved_entry_fee + resolved_exit_fee
         net = gross - total
 
