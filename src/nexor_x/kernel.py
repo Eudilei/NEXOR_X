@@ -5,6 +5,7 @@ import json
 from datetime import UTC, datetime
 
 from nexor_x import __version__
+from nexor_x.accounting.runtime_integration import NetPerformanceAggregator, NetPnLRuntimeAdapter
 from nexor_x.ai.ollama import OllamaService
 from nexor_x.config import Settings
 from nexor_x.core.event_bus import EventBus
@@ -84,6 +85,8 @@ from nexor_x.strategy import StrategyOrchestrationService
 
 class Kernel:
     def __init__(self, settings: Settings) -> None:
+        self.net_pnl_runtime = NetPnLRuntimeAdapter()
+        self.net_performance = NetPerformanceAggregator()
         self.settings = settings
         self.event_bus = EventBus()
         self.registry = ServiceRegistry()

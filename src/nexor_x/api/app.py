@@ -540,6 +540,18 @@ def create_app(kernel: Any) -> FastAPI:
     ) -> dict[str, Any]:
         return await kernel.operational_readiness_summary()
 
+    @app.get("/api/operations/net-pnl-accounting")
+    async def net_pnl_accounting_status(
+        _: None = Depends(require_admin),
+    ) -> dict[str, Any]:
+        return {
+            "pnl_basis": "NET_AFTER_FEES",
+            "gross_pnl_preserved": True,
+            "fees_preserved": True,
+            "profit_factor_basis": "NET_AFTER_FEES",
+            "live_allowed": False,
+        }
+
     @app.get("/api/operations/filter-rigidity")
     async def filter_rigidity_status(
         _: None = Depends(require_admin),
