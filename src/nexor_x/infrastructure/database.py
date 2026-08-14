@@ -163,6 +163,17 @@ CREATE TABLE IF NOT EXISTS counterfactual_runs(
 CREATE INDEX IF NOT EXISTS idx_counterfactual_generated
 ON counterfactual_runs(generated_at DESC);
 
+CREATE TABLE IF NOT EXISTS backtest_diagnostic_runs(
+ run_id TEXT PRIMARY KEY,
+ generated_at TEXT NOT NULL,
+ trade_count INTEGER NOT NULL,
+ net_pnl REAL NOT NULL,
+ status TEXT NOT NULL,
+ report_json TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_backtest_diagnostics_generated
+ON backtest_diagnostic_runs(generated_at DESC);
+
 """
 
 class DatabaseService(BaseService):

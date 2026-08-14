@@ -44,6 +44,10 @@ class CounterfactualRequest(BaseModel):
     edge_thresholds: list[float] | None = Field(default=None, min_length=1, max_length=20)
 
 
+class BacktestDiagnosticRequest(BaseModel):
+    trades: list[dict[str, Any]] = Field(min_length=1, max_length=100000)
+
+
 class StrategyMetricRequest(BaseModel):
     strategy_id: str = Field(min_length=2, max_length=80)
     sample_count: int = Field(ge=1, le=10000000)
@@ -256,6 +260,19 @@ def create_app(kernel: Any) -> FastAPI:
     @app.get("/api/laboratory/status")
     async def laboratory_status() -> dict[str, Any]:
         return await kernel.laboratory_status()
+
+    @app.get("/api/laboratory/backtest-diagnostics/status")
+    async def backtest_diagnostic_status() -> dict[str, Any]:
+        return await kernel.backtest_diagnostic_status()
+
+    @app.post("/api/laboratory/backtest-diagnostics/run")
+    async def diagnose_backtest(
+        body: BacktestDiagnosticRequest, _: None = Depends(require_admin)
+    ) -> dict[str, Any]:
+        try:
+            return await kernel.diagnose_backtest(body.trades)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     @app.get("/api/edges/status")
     async def edge_status() -> dict[str, Any]:

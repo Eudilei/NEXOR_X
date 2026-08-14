@@ -601,6 +601,25 @@ class Kernel:
     async def counterfactual_status(self) -> dict[str, object]:
         return await self.laboratory.counterfactual_status()
 
+    async def diagnose_backtest(
+        self, trades: list[dict[str, object]],
+    ) -> dict[str, object]:
+        result = await self.laboratory.diagnose_backtest(trades)
+        await self.event_bus.publish(Event(
+            "laboratory.backtest_diagnosed",
+            {
+                "run_id": result["run_id"],
+                "trade_count": result["summary"]["trade_count"],
+                "net_pnl": result["summary"]["net_pnl"],
+                "execution_allowed": False,
+            },
+            "backtest_diagnostics",
+        ))
+        return result
+
+    async def backtest_diagnostic_status(self) -> dict[str, object]:
+        return await self.laboratory.backtest_diagnostic_status()
+
     async def strategy_status(self) -> dict[str, object]:
         return await self.strategy_orchestration.status()
 
