@@ -81,6 +81,7 @@ from nexor_x.exchange import (
 from nexor_x.certification import CertificationPolicy, CertificationService
 from nexor_x.allocation import AllocationService, AllocationPolicy
 from nexor_x.strategy import StrategyOrchestrationService
+from nexor_x.shadow import CausalShadowLearningService
 
 
 class Kernel:
@@ -246,6 +247,21 @@ class Kernel:
             self.database,
             self.manage_all_positions,
         )
+        self.causal_shadow = CausalShadowLearningService(
+            self.database,
+            quant_assessment=self.quant_assessment,
+            market_state=self.market_state,
+            symbols=settings.scanner_symbol_list,
+            fee_rate=settings.paper_fee_rate,
+            slippage_rate=settings.paper_slippage_rate,
+            stop_loss_pct=settings.paper_stop_loss_pct,
+            break_even_trigger_r=settings.position_break_even_trigger_r,
+            break_even_buffer_r=settings.position_break_even_buffer_r,
+            partial_trigger_r=settings.position_partial_trigger_r,
+            partial_fraction=settings.position_partial_fraction,
+            trailing_start_r=settings.position_trailing_start_r,
+            trailing_distance_r=settings.position_trailing_distance_r,
+        )
         self.telegram = TelegramService(settings.telegram_bot_token, settings.telegram_chat_id)
         self.telegram_notifier = TelegramEventNotifier(
             self.telegram,
@@ -333,6 +349,14 @@ class Kernel:
                     self._scheduled_scan,
                 )
             )
+        if self.settings.causal_shadow_enabled:
+            self.scheduler.add_job(
+                ScheduledJob(
+                    "causal_shadow_learning",
+                    self.settings.causal_shadow_interval_seconds,
+                    self._scheduled_causal_shadow,
+                )
+            )
 
         for service in (
             self.database,
@@ -352,6 +376,7 @@ class Kernel:
         await self.auto_paper.start()
         await self.auto_position_management.start()
         await self.context_backtest.start()
+        await self.causal_shadow.start()
         await self.validation_campaign.start()
         await self.validation_cycle.start()
         await self.validation_snapshot.start()
@@ -600,25 +625,6 @@ class Kernel:
 
     async def counterfactual_status(self) -> dict[str, object]:
         return await self.laboratory.counterfactual_status()
-
-    async def diagnose_backtest(
-        self, trades: list[dict[str, object]],
-    ) -> dict[str, object]:
-        result = await self.laboratory.diagnose_backtest(trades)
-        await self.event_bus.publish(Event(
-            "laboratory.backtest_diagnosed",
-            {
-                "run_id": result["run_id"],
-                "trade_count": result["summary"]["trade_count"],
-                "net_pnl": result["summary"]["net_pnl"],
-                "execution_allowed": False,
-            },
-            "backtest_diagnostics",
-        ))
-        return result
-
-    async def backtest_diagnostic_status(self) -> dict[str, object]:
-        return await self.laboratory.backtest_diagnostic_status()
 
     async def strategy_status(self) -> dict[str, object]:
         return await self.strategy_orchestration.status()
@@ -1499,6 +1505,18 @@ class Kernel:
             await self.scanner_run()
         except Exception as exc:
             self._log.warning("scheduled_scan_failed error=%s", exc)
+
+    async def _scheduled_causal_shadow(self) -> None:
+        try:
+            result = await self.causal_shadow.run_once()
+            await self.event_bus.publish(Event(
+                "laboratory.causal_shadow_cycle",
+                {"opened": len(result["opened"]), "closed": len(result["closed"]),
+                 "blocked": len(result["blocked"]), "live_execution_allowed": False},
+                "causal_shadow",
+            ))
+        except Exception as exc:
+            self._log.warning("scheduled_causal_shadow_failed error=%s", exc)
 
     async def _persist_event(self, event: Event) -> None:
         if event.topic.startswith(("system.", "market.", "quant.", "laboratory.", "risk.", "execution.", "position.", "strategy.")):

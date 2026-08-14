@@ -53,6 +53,8 @@ class Settings(BaseSettings):
 
     auto_position_management_enabled: bool = True
     auto_position_management_interval_seconds: float = 5.0
+    causal_shadow_enabled: bool = True
+    causal_shadow_interval_seconds: float = 60.0
 
     telegram_notifications_enabled: bool = True
 
@@ -162,6 +164,7 @@ def _yaml_values(path: Path = Path("config/settings.yaml")) -> dict[str, Any]:
     market = raw.get("market", {})
     risk = raw.get("risk", {})
     scanner = raw.get("scanner", {})
+    causal_shadow = raw.get("causal_shadow", {})
     position = raw.get("position_management", {})
     discovery = raw.get("edge_discovery", {})
     probability = raw.get("probability_calibration", {})
@@ -202,6 +205,8 @@ def _yaml_values(path: Path = Path("config/settings.yaml")) -> dict[str, Any]:
         "scanner_interval_seconds": scanner.get("interval_seconds", 60.0),
         "scanner_concurrency": scanner.get("concurrency", 4),
         "scanner_top_candidates": scanner.get("top_candidates", 10),
+        "causal_shadow_enabled": causal_shadow.get("enabled", True),
+        "causal_shadow_interval_seconds": causal_shadow.get("interval_seconds", 60.0),
         "position_break_even_trigger_r": position.get("break_even_trigger_r", 0.8),
         "position_break_even_buffer_r": position.get("break_even_buffer_r", 0.05),
         "position_partial_trigger_r": position.get("partial_trigger_r", 1.5),

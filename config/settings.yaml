@@ -46,6 +46,10 @@ scanner:
   concurrency: 4
   top_candidates: 10
 
+causal_shadow:
+  enabled: true
+  interval_seconds: 60
+
 position_management:
   break_even_trigger_r: 0.8
   break_even_buffer_r: 0.05
