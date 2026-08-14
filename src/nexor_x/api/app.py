@@ -540,6 +540,12 @@ def create_app(kernel: Any) -> FastAPI:
     ) -> dict[str, Any]:
         return await kernel.operational_readiness_summary()
 
+    @app.get("/api/operations/filter-rigidity")
+    async def filter_rigidity_status(
+        _: None = Depends(require_admin),
+    ) -> dict[str, Any]:
+        return await kernel.filter_rigidity_status()
+
     @app.get("/api/operations/entry-decision-trace")
     async def unified_entry_decision_trace(
         _: None = Depends(require_admin),
