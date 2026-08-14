@@ -78,15 +78,24 @@ class BacktestDiagnosticEngine:
         return json.loads(str(rows[0][0])) if rows else {"status": "NEVER_RUN"}
 
     def _diagnose_trade(self, trade: dict[str, Any], index: int) -> dict[str, Any]:
-        gross = self._number(trade, "gross_pnl", "gross_profit", default=0.0)
+        gross = self._number(
+            trade, "gross_pnl", "gross_profit", "gross_pnl_usdt", default=0.0
+        )
         entry_fee = self._number(trade, "entry_fee", default=0.0)
         exit_fee = self._number(trade, "exit_fee", default=0.0)
-        total_fees = self._number(trade, "total_fees", "fees", default=entry_fee + exit_fee)
-        net = self._number(trade, "net_pnl", "pnl", "realized_pnl", default=gross-total_fees)
+        total_fees = self._number(
+            trade, "total_fees", "fees", "estimated_cost_usdt",
+            default=entry_fee + exit_fee,
+        )
+        net = self._number(
+            trade, "net_pnl", "pnl", "realized_pnl", "net_pnl_usdt",
+            default=gross-total_fees,
+        )
         realized_r = self._number(trade, "realized_r", default=0.0)
         mfe_r = self._optional_number(trade, "mfe_r", "maximum_favorable_excursion_r")
         mae_r = self._optional_number(trade, "mae_r", "maximum_adverse_excursion_r")
         causes: list[dict[str, Any]] = []
+        strengths: list[dict[str, str]] = []
         missing = [
             name for name in ("strategy_id", "regime", "exit_reason", "realized_r")
             if trade.get(name) in (None, "")
@@ -98,42 +107,59 @@ class BacktestDiagnosticEngine:
                 "suggested_test": action,
             })
 
+        def praise(code: str, evidence: str) -> None:
+            strengths.append({"code": code, "evidence": evidence})
+
         if gross > 0 >= net:
             add("COST_DRAG", "HIGH", f"bruto={gross:.8f}; taxas={total_fees:.8f}; liquido={net:.8f}",
                 "comparar maker/taker, spread e frequencia sem remover custos")
         elif gross > 0 and total_fees / gross > self.policy.maximum_fee_share_of_gross:
             add("HIGH_FEE_SHARE", "MEDIUM", f"taxas consumiram {total_fees/gross:.1%} do bruto",
                 "testar filtro de ganho minimo acima do custo total")
+        elif net > 0 and gross > 0:
+            praise("COST_EFFICIENT", f"taxas={total_fees/gross:.1%} do lucro bruto")
 
         slippage = self._optional_number(trade, "slippage_bps")
         if slippage is not None and abs(slippage) > self.policy.maximum_slippage_bps:
             add("EXCESSIVE_SLIPPAGE", "HIGH", f"slippage={slippage:.2f} bps",
                 "segmentar por liquidez e horario; validar modelo de fill")
+        elif slippage is not None:
+            praise("CONTROLLED_SLIPPAGE", f"slippage={slippage:.2f} bps")
 
         planned_rr = self._optional_number(trade, "planned_rr", "risk_reward")
         if planned_rr is not None and planned_rr < self.policy.minimum_planned_rr:
             add("LOW_PLANNED_RR", "HIGH", f"R:R planejado={planned_rr:.3f}",
                 f"retestar bloqueio R:R >= {self.policy.minimum_planned_rr}")
+        elif planned_rr is not None:
+            praise("HEALTHY_PLANNED_RR", f"R:R planejado={planned_rr:.3f}")
 
         risk_pct = self._optional_number(trade, "risk_pct", "risk_per_trade_pct")
         if risk_pct is not None and risk_pct > self.policy.maximum_risk_pct:
             add("EXCESSIVE_POSITION_RISK", "HIGH", f"risco={risk_pct:.3f}%",
                 "reduzir sizing no cenario comparativo e medir drawdown")
+        elif risk_pct is not None:
+            praise("CONTROLLED_POSITION_RISK", f"risco={risk_pct:.3f}%")
 
         raw_edge = self._optional_number(trade, "raw_edge", "edge")
         if raw_edge is not None and abs(raw_edge) < self.policy.minimum_edge:
             add("WEAK_EDGE", "MEDIUM", f"edge absoluto={abs(raw_edge):.4f}",
                 "comparar limiares de edge somente fora da amostra")
+        elif raw_edge is not None:
+            praise("ROBUST_RECORDED_EDGE", f"edge absoluto={abs(raw_edge):.4f}")
 
         signal_regime = str(trade.get("signal_regime") or "").upper()
         market_regime = str(trade.get("market_regime") or trade.get("regime") or "").upper()
         if signal_regime and market_regime and signal_regime != market_regime:
             add("REGIME_MISMATCH", "HIGH", f"sinal={signal_regime}; mercado={market_regime}",
                 "separar resultado por regime e retestar a estrategia compativel")
+        elif signal_regime and market_regime:
+            praise("REGIME_ALIGNED", f"sinal e mercado={market_regime}")
 
         if mae_r is not None and mae_r >= self.policy.severe_mae_r and net < 0:
             add("ADVERSE_ENTRY_TIMING", "MEDIUM", f"MAE={mae_r:.3f}R",
                 "testar confirmacao ou entrada posterior sem usar dados futuros")
+        elif mae_r is not None and net > 0 and mae_r < self.policy.severe_mae_r:
+            praise("FAVORABLE_ENTRY_PATH", f"MAE={mae_r:.3f}R")
 
         if mfe_r is not None and net < 0 and mfe_r >= self.policy.missed_profit_r:
             add("PROFIT_NOT_PROTECTED", "HIGH", f"MFE={mfe_r:.3f}R; final={realized_r:.3f}R",
@@ -141,8 +167,13 @@ class BacktestDiagnosticEngine:
         if mfe_r is not None and mfe_r-realized_r >= self.policy.excessive_giveback_r:
             add("EXCESSIVE_GIVEBACK", "MEDIUM", f"devolucao={mfe_r-realized_r:.3f}R",
                 "testar protecao progressiva sem otimizar no mesmo periodo")
+        elif mfe_r is not None and realized_r > 0:
+            praise("PROFIT_RETAINED", f"MFE={mfe_r:.3f}R; realizado={realized_r:.3f}R")
 
-        exit_reason = str(trade.get("exit_reason") or trade.get("close_reason") or "").upper()
+        exit_reason = str(
+            trade.get("exit_reason") or trade.get("close_reason")
+            or trade.get("final_reason") or ""
+        ).upper()
         if "STOP" in exit_reason and mfe_r is not None and mfe_r > 0.5:
             add("STOP_AFTER_FAVORABLE_MOVE", "MEDIUM", f"saida={exit_reason}; MFE={mfe_r:.3f}R",
                 "verificar momento de ativacao do break-even e trailing")
@@ -168,6 +199,7 @@ class BacktestDiagnosticEngine:
             "diagnostic_confidence": confidence,
             "missing_fields": missing,
             "causes": causes,
+            "strengths": strengths,
         }
 
     def _summarize(self, trades: list[dict[str, Any]]) -> dict[str, Any]:
@@ -176,6 +208,9 @@ class BacktestDiagnosticEngine:
         gross = sum(float(item["gross_pnl"]) for item in trades)
         cause_counts = Counter(
             cause["code"] for item in trades for cause in item["causes"]
+        )
+        strength_counts = Counter(
+            strength["code"] for item in trades for strength in item["strengths"]
         )
         by_strategy: dict[str, float] = defaultdict(float)
         by_regime: dict[str, float] = defaultdict(float)
@@ -200,6 +235,10 @@ class BacktestDiagnosticEngine:
             "maximum_drawdown_value": round(drawdown, 8),
             "top_diagnostic_causes": [
                 {"code": code, "count": count} for code, count in cause_counts.most_common(10)
+            ],
+            "top_positive_factors": [
+                {"code": code, "count": count}
+                for code, count in strength_counts.most_common(10)
             ],
             "net_pnl_by_strategy": dict(sorted(by_strategy.items())),
             "net_pnl_by_regime": dict(sorted(by_regime.items())),

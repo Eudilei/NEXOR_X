@@ -60,6 +60,10 @@ async def test_uses_net_pnl_for_profit_factor_and_rankings(tmp_path: Path) -> No
     assert summary["net_pnl"] == 5
     assert summary["profit_factor_net"] == 2
     assert summary["net_pnl_by_strategy"] == {"A": 10, "B": -5}
+    assert any(
+        item["code"] == "COST_EFFICIENT"
+        for item in summary["top_positive_factors"]
+    )
     await database.stop()
 
 
