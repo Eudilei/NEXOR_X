@@ -29,6 +29,7 @@ from nexor_x.operations.operational_readiness_summary import UnifiedOperationalR
 from nexor_x.operations.operational_acceptance_audit import OperationalAcceptanceAudit
 from nexor_x.validation.final_campaign import FinalValidationCampaignController
 from nexor_x.validation.final_completion import FinalTechnicalCompletionGate
+from nexor_x.validation.final_dashboard import FinalTechnicalDashboardSnapshot
 from nexor_x.logging import logger
 from nexor_x.market.engine import MarketIntelligenceEngine
 from nexor_x.evidence import EvidenceEngine
@@ -262,6 +263,7 @@ class Kernel:
         self.operational_readiness_summary = UnifiedOperationalReadinessSummary()
         self.operational_acceptance_audit = OperationalAcceptanceAudit()
         self.final_technical_completion = FinalTechnicalCompletionGate()
+        self.final_dashboard_snapshot = FinalTechnicalDashboardSnapshot()
         self.final_validation_campaign = FinalValidationCampaignController(
             state_path="data/final_validation_campaign.json"
         )
@@ -919,6 +921,20 @@ class Kernel:
         self, symbol: str | None = None,
     ) -> dict[str, object]:
         return await self.context_backtest.latest(symbol=symbol)
+
+    async def final_dashboard_snapshot_status(
+        self,
+    ) -> dict[str, object]:
+        completion = await self.final_technical_completion_status()
+        campaign = await self.final_validation_campaign_status()
+        acceptance = await self.operational_acceptance_audit()
+        readiness_summary = await self.operational_readiness_summary()
+        return self.final_dashboard_snapshot.build(
+            completion=completion,
+            campaign=campaign,
+            acceptance=acceptance,
+            readiness_summary=readiness_summary,
+        )
 
     async def final_technical_completion_status(
         self,
