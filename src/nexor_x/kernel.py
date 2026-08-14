@@ -28,6 +28,7 @@ from nexor_x.operations.entry_decision_trace import UnifiedEntryDecisionTrace
 from nexor_x.operations.operational_readiness_summary import UnifiedOperationalReadinessSummary
 from nexor_x.operations.operational_acceptance_audit import OperationalAcceptanceAudit
 from nexor_x.validation.final_campaign import FinalValidationCampaignController
+from nexor_x.validation.final_completion import FinalTechnicalCompletionGate
 from nexor_x.logging import logger
 from nexor_x.market.engine import MarketIntelligenceEngine
 from nexor_x.evidence import EvidenceEngine
@@ -260,6 +261,7 @@ class Kernel:
         self.entry_decision_trace = UnifiedEntryDecisionTrace()
         self.operational_readiness_summary = UnifiedOperationalReadinessSummary()
         self.operational_acceptance_audit = OperationalAcceptanceAudit()
+        self.final_technical_completion = FinalTechnicalCompletionGate()
         self.final_validation_campaign = FinalValidationCampaignController(
             state_path="data/final_validation_campaign.json"
         )
@@ -917,6 +919,20 @@ class Kernel:
         self, symbol: str | None = None,
     ) -> dict[str, object]:
         return await self.context_backtest.latest(symbol=symbol)
+
+    async def final_technical_completion_status(
+        self,
+    ) -> dict[str, object]:
+        acceptance = await self.operational_acceptance_audit()
+        campaign = await self.final_validation_campaign_status()
+        readiness = await self.live_readiness_status()
+        certification = await self.live_certification_status()
+        return self.final_technical_completion.evaluate(
+            acceptance_audit=acceptance,
+            campaign=campaign,
+            readiness=readiness,
+            certification=certification,
+        )
 
     async def final_validation_campaign_status(
         self,

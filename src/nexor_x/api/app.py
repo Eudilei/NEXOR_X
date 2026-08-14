@@ -498,6 +498,12 @@ def create_app(kernel: Any) -> FastAPI:
     ) -> dict[str, Any]:
         return await kernel.context_backtest_status(symbol)
 
+    @app.get("/api/validation/final-completion")
+    async def final_technical_completion_status(
+        _: None = Depends(require_admin),
+    ) -> dict[str, Any]:
+        return await kernel.final_technical_completion_status()
+
     @app.get("/api/validation/final-campaign")
     async def final_validation_campaign_status(
         _: None = Depends(require_admin),
