@@ -41,10 +41,13 @@ risk:
 
 scanner:
   enabled: true
+  universe_mode: BINANCE_USDT_PERPETUAL
   symbols: BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT,XRPUSDT
   interval_seconds: 60
-  concurrency: 4
-  top_candidates: 10
+  concurrency: 8
+  shallow_limit: 60
+  minimum_quote_volume: 1000000
+  top_candidates: 60
 
 causal_shadow:
   enabled: true

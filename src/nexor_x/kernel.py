@@ -45,7 +45,7 @@ from nexor_x.laboratory.counterfactual import CounterfactualConfig
 from nexor_x.portfolio import PortfolioService
 from nexor_x.risk import PreTradeGate
 from nexor_x.execution import PaperExecutionService
-from nexor_x.scanner import MarketScannerService
+from nexor_x.scanner import MarketScannerService, ShallowUniverseSelector
 from nexor_x.position import PositionManagementService
 from nexor_x.position.service import PositionPolicy
 from nexor_x.autopaper import AutoPaperService
@@ -234,6 +234,9 @@ class Kernel:
             symbols=settings.scanner_symbol_list,
             concurrency=settings.scanner_concurrency,
             top_candidates=settings.scanner_top_candidates,
+            universe_provider=self.binance.market_universe,
+            shallow_limit=settings.scanner_shallow_limit,
+            minimum_quote_volume=settings.scanner_minimum_quote_volume,
         )
         self.auto_paper = AutoPaperService(
             self.database,
@@ -252,6 +255,7 @@ class Kernel:
             quant_assessment=self.quant_assessment,
             market_state=self.market_state,
             symbols=settings.scanner_symbol_list,
+            symbol_provider=self._deep_universe_symbols,
             fee_rate=settings.paper_fee_rate,
             slippage_rate=settings.paper_slippage_rate,
             stop_loss_pct=settings.paper_stop_loss_pct,
@@ -268,6 +272,19 @@ class Kernel:
             enabled=settings.telegram_notifications_enabled,
         )
         self.ollama = OllamaService(settings.ollama_base_url, settings.ollama_model)
+
+    async def _deep_universe_symbols(self) -> tuple[str, ...]:
+        status = await self.scanner.status()
+        selected = status.get("shallow_selected") or []
+        symbols = tuple(str(item["symbol"]) for item in selected if isinstance(item, dict))
+        if symbols:
+            return symbols
+        universe = await self.binance.market_universe()
+        shallow = ShallowUniverseSelector(
+            limit=self.settings.scanner_shallow_limit,
+            minimum_quote_volume=self.settings.scanner_minimum_quote_volume,
+        ).select(universe)
+        return tuple(item.symbol for item in shallow) or self.settings.scanner_symbol_list
         self.scheduler = SchedulerService()
         self.watchdog = WatchdogService(self.registry)
         self.runtime_processes = None
@@ -625,6 +642,25 @@ class Kernel:
 
     async def counterfactual_status(self) -> dict[str, object]:
         return await self.laboratory.counterfactual_status()
+
+    async def diagnose_backtest(
+        self, trades: list[dict[str, object]],
+    ) -> dict[str, object]:
+        result = await self.laboratory.diagnose_backtest(trades)
+        await self.event_bus.publish(Event(
+            "laboratory.backtest_diagnosed",
+            {
+                "run_id": result["run_id"],
+                "trade_count": result["summary"]["trade_count"],
+                "net_pnl": result["summary"]["net_pnl"],
+                "execution_allowed": False,
+            },
+            "backtest_diagnostics",
+        ))
+        return result
+
+    async def backtest_diagnostic_status(self) -> dict[str, object]:
+        return await self.laboratory.backtest_diagnostic_status()
 
     async def strategy_status(self) -> dict[str, object]:
         return await self.strategy_orchestration.status()

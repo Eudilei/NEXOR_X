@@ -95,6 +95,8 @@ class Settings(BaseSettings):
     scanner_interval_seconds: float = Field(default=60.0, ge=15.0, le=86400.0)
     scanner_concurrency: int = Field(default=4, ge=1, le=32)
     scanner_top_candidates: int = Field(default=10, ge=1, le=100)
+    scanner_shallow_limit: int = Field(default=60, ge=1, le=500)
+    scanner_minimum_quote_volume: float = Field(default=1_000_000.0, ge=0)
     position_break_even_trigger_r: float = Field(default=0.8, gt=0, le=20)
     position_break_even_buffer_r: float = Field(default=0.05, ge=0, le=5)
     position_partial_trigger_r: float = Field(default=1.5, gt=0, le=50)
@@ -205,6 +207,8 @@ def _yaml_values(path: Path = Path("config/settings.yaml")) -> dict[str, Any]:
         "scanner_interval_seconds": scanner.get("interval_seconds", 60.0),
         "scanner_concurrency": scanner.get("concurrency", 4),
         "scanner_top_candidates": scanner.get("top_candidates", 10),
+        "scanner_shallow_limit": scanner.get("shallow_limit", 60),
+        "scanner_minimum_quote_volume": scanner.get("minimum_quote_volume", 1_000_000.0),
         "causal_shadow_enabled": causal_shadow.get("enabled", True),
         "causal_shadow_interval_seconds": causal_shadow.get("interval_seconds", 60.0),
         "position_break_even_trigger_r": position.get("break_even_trigger_r", 0.8),
@@ -276,6 +280,8 @@ def _environment_overrides() -> dict[str, Any]:
         "SCANNER_INTERVAL_SECONDS": "scanner_interval_seconds",
         "SCANNER_CONCURRENCY": "scanner_concurrency",
         "SCANNER_TOP_CANDIDATES": "scanner_top_candidates",
+        "SCANNER_SHALLOW_LIMIT": "scanner_shallow_limit",
+        "SCANNER_MINIMUM_QUOTE_VOLUME": "scanner_minimum_quote_volume",
         "POSITION_BREAK_EVEN_TRIGGER_R": "position_break_even_trigger_r",
         "POSITION_BREAK_EVEN_BUFFER_R": "position_break_even_buffer_r",
         "POSITION_PARTIAL_TRIGGER_R": "position_partial_trigger_r",

@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 import json
-from typing import Any
+from typing import Any, Awaitable, Callable
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,6 +29,7 @@ class CausalShadowLearningService:
 
     def __init__(self, database: Any, *, quant_assessment: Any, market_state: Any,
                  symbols: tuple[str, ...], fee_rate: float, slippage_rate: float,
+                 symbol_provider: Callable[[], Awaitable[tuple[str, ...]]] | None = None,
                  stop_loss_pct: float, break_even_trigger_r: float,
                  break_even_buffer_r: float, partial_trigger_r: float,
                  partial_fraction: float, trailing_start_r: float,
@@ -37,6 +38,7 @@ class CausalShadowLearningService:
         self.quant_assessment = quant_assessment
         self.market_state = market_state
         self.symbols = symbols
+        self.symbol_provider = symbol_provider
         self.fee_rate = fee_rate
         self.slippage_rate = slippage_rate
         self.stop_loss_pct = stop_loss_pct
@@ -68,7 +70,8 @@ class CausalShadowLearningService:
         opened: list[str] = []
         closed: list[dict[str, Any]] = []
         blocked: list[dict[str, str]] = []
-        for symbol in self.symbols:
+        symbols = await self.symbol_provider() if self.symbol_provider else self.symbols
+        for symbol in symbols:
             try:
                 market = await self.market_state(symbol)
                 snapshot = market.get("snapshot") or {}

@@ -9,8 +9,10 @@ from uuid import uuid4
 from nexor_x.infrastructure.database import DatabaseService
 
 from .models import ScannerCandidate, ScannerRun
+from .universe import ShallowUniverseSelector
 
 AssessmentProvider = Callable[[str], Awaitable[dict[str, object]]]
+UniverseProvider = Callable[[], Awaitable[Iterable[object]]]
 
 
 class MarketScannerService:
@@ -24,6 +26,9 @@ class MarketScannerService:
         symbols: Iterable[str],
         concurrency: int = 4,
         top_candidates: int = 10,
+        universe_provider: UniverseProvider | None = None,
+        shallow_limit: int = 60,
+        minimum_quote_volume: float = 1_000_000.0,
     ) -> None:
         normalized = tuple(dict.fromkeys(self._normalize_symbol(item) for item in symbols))
         if not normalized:
@@ -37,6 +42,11 @@ class MarketScannerService:
         self._symbols = normalized
         self._concurrency = concurrency
         self._top_candidates = top_candidates
+        self._universe_provider = universe_provider
+        self._selector = ShallowUniverseSelector(
+            limit=shallow_limit, minimum_quote_volume=minimum_quote_volume
+        )
+        self._latest_shallow: tuple[object, ...] = ()
         self._lock = asyncio.Lock()
         self._latest: ScannerRun | None = None
         self._running = False
@@ -60,6 +70,13 @@ class MarketScannerService:
             started_at = datetime.now(UTC)
             run_id = str(uuid4())
             semaphore = asyncio.Semaphore(self._concurrency)
+            symbols = self._symbols
+            if self._universe_provider is not None:
+                universe = await self._universe_provider()
+                self._latest_shallow = self._selector.select(universe)  # type: ignore[arg-type]
+                symbols = tuple(item.symbol for item in self._latest_shallow)
+                if not symbols:
+                    raise RuntimeError("shallow analysis selected no eligible asset")
 
             async def evaluate(symbol: str) -> tuple[ScannerCandidate | None, dict[str, str] | None]:
                 async with semaphore:
@@ -89,7 +106,7 @@ class MarketScannerService:
                         return None, {"symbol": symbol, "error": self._compact_error(exc)}
 
             try:
-                results = await asyncio.gather(*(evaluate(symbol) for symbol in self._symbols))
+                results = await asyncio.gather(*(evaluate(symbol) for symbol in symbols))
                 candidates = [candidate for candidate, _ in results if candidate is not None]
                 errors = [error for _, error in results if error is not None]
                 candidates.sort(key=lambda item: item.rank_score, reverse=True)
@@ -99,7 +116,7 @@ class MarketScannerService:
                     run_id=run_id,
                     started_at=started_at,
                     finished_at=finished_at,
-                    symbols_requested=len(self._symbols),
+                    symbols_requested=len(symbols),
                     symbols_succeeded=len(candidates),
                     symbols_failed=len(errors),
                     candidates=selected,
@@ -116,12 +133,16 @@ class MarketScannerService:
             return {
                 "running": self._running,
                 "configured_symbols": list(self._symbols),
+                "universe_mode": "BINANCE_USDT_PERPETUAL" if self._universe_provider else "STATIC",
+                "shallow_selected": [item.to_dict() for item in self._latest_shallow],
                 "last_run": None,
                 "execution_triggered": False,
             }
         return {
             "running": self._running,
             "configured_symbols": list(self._symbols),
+            "universe_mode": "BINANCE_USDT_PERPETUAL" if self._universe_provider else "STATIC",
+            "shallow_selected": [item.to_dict() for item in self._latest_shallow],
             "last_run": self._latest.to_dict(),
             "execution_triggered": False,
         }

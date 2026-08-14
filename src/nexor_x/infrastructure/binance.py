@@ -32,6 +32,8 @@ class BinanceMarketDataService(BaseService):
         self._stale_after = timedelta(seconds=stale_after_seconds)
         self._failure_cooldown = timedelta(seconds=failure_cooldown_seconds)
         self._cache: dict[str, MarketSnapshot] = {}
+        self._universe_cache: tuple[MarketSnapshot, ...] = ()
+        self._universe_fetched_at: datetime | None = None
         self._last_failure_at: datetime | None = None
         self._last_error = ""
         self._lock = asyncio.Lock()
@@ -116,6 +118,54 @@ class BinanceMarketDataService(BaseService):
     async def ticker_price(self, symbol: str = "BTCUSDT") -> float:
         return (await self.market_snapshot(symbol)).price
 
+    async def market_universe(self) -> tuple[MarketSnapshot, ...]:
+        """Return every currently tradable Binance USDT perpetual contract."""
+        now = datetime.now(UTC)
+        if (self._universe_cache and self._universe_fetched_at
+                and now-self._universe_fetched_at <= self._cache_ttl):
+            return self._universe_cache
+        if self._client is None:
+            raise RuntimeError("Binance service is not started")
+        try:
+            exchange_response, ticker_response = await asyncio.gather(
+                self._client.get("/fapi/v1/exchangeInfo"),
+                self._client.get("/fapi/v1/ticker/24hr"),
+            )
+            exchange_response.raise_for_status()
+            ticker_response.raise_for_status()
+            contracts = {
+                str(item.get("symbol", "")) for item in exchange_response.json().get("symbols", [])
+                if item.get("status") == "TRADING"
+                and item.get("contractType") == "PERPETUAL"
+                and item.get("quoteAsset") == "USDT"
+            }
+            snapshots = []
+            for payload in ticker_response.json():
+                symbol = str(payload.get("symbol", ""))
+                if symbol not in contracts:
+                    continue
+                try:
+                    snapshot = self._parse_snapshot(symbol, payload, now)
+                except (KeyError, TypeError, ValueError):
+                    continue
+                snapshots.append(snapshot)
+                self._cache[symbol] = snapshot
+            if not snapshots:
+                raise RuntimeError("empty eligible Binance universe")
+            self._universe_cache = tuple(snapshots)
+            self._universe_fetched_at = now
+            self._state = ServiceState.HEALTHY
+            self._details = f"eligible USDT perpetual universe: {len(snapshots)}"
+            self._last_error = ""
+            self._last_failure_at = None
+            return self._universe_cache
+        except Exception as exc:
+            self._mark_failure(exc)
+            if self._universe_cache:
+                return tuple(replace(item, stale=True, source=f"{item.source}:cache")
+                             for item in self._universe_cache)
+            raise
+
     def _cached_or_raise(self, symbol: str, now: datetime) -> MarketSnapshot:
         cached = self._cache.get(symbol)
         if cached is None:
@@ -153,6 +203,7 @@ class BinanceMarketDataService(BaseService):
         return {
             "base_url": self._base_url,
             "cached_symbols": sorted(self._cache),
+            "eligible_universe_size": len(self._universe_cache),
             "last_error": self._last_error,
             "cooldown_active": self._in_cooldown(datetime.now(UTC)),
         }
