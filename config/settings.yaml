@@ -52,6 +52,7 @@ scanner:
 causal_shadow:
   enabled: true
   interval_seconds: 60
+  maximum_holding_hours: 48
 
 position_management:
   break_even_trigger_r: 0.8

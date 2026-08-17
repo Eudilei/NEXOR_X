@@ -265,6 +265,7 @@ class Kernel:
             partial_fraction=settings.position_partial_fraction,
             trailing_start_r=settings.position_trailing_start_r,
             trailing_distance_r=settings.position_trailing_distance_r,
+            maximum_holding_hours=settings.causal_shadow_maximum_holding_hours,
         )
         self.telegram = TelegramService(settings.telegram_bot_token, settings.telegram_chat_id)
         self.telegram_notifier = TelegramEventNotifier(

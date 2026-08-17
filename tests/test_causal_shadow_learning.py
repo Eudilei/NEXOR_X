@@ -1,4 +1,5 @@
 from nexor_x.shadow import CausalShadowLearningService
+from datetime import UTC, datetime, timedelta
 
 
 def service() -> CausalShadowLearningService:
@@ -29,3 +30,16 @@ def test_shadow_never_creates_order_and_closes_causally() -> None:
         "partial_net_r": advanced.partial_net_r}, advanced.stop_price)
     assert closed.closed
     assert closed.realized_r is not None
+
+
+def test_shadow_closes_after_maximum_holding_time() -> None:
+    engine = service()
+    position = {
+        "side": "LONG", "entry_price": 100.0, "stop_price": 99.0,
+        "highest_price": 100.0, "lowest_price": 100.0,
+        "partial_taken": 0, "remaining_fraction": 1.0, "partial_net_r": 0.0,
+        "opened_at": (datetime.now(UTC)-timedelta(hours=49)).isoformat(),
+    }
+    advanced = engine.advance_position(position, 100.2)
+    assert advanced.closed
+    assert advanced.reason == "SHADOW_TIME_LIMIT"

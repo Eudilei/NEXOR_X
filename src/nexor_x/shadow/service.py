@@ -33,7 +33,7 @@ class CausalShadowLearningService:
                  stop_loss_pct: float, break_even_trigger_r: float,
                  break_even_buffer_r: float, partial_trigger_r: float,
                  partial_fraction: float, trailing_start_r: float,
-                 trailing_distance_r: float) -> None:
+                 trailing_distance_r: float, maximum_holding_hours: float = 48.0) -> None:
         self.database = database
         self.quant_assessment = quant_assessment
         self.market_state = market_state
@@ -48,6 +48,7 @@ class CausalShadowLearningService:
         self.partial_fraction = partial_fraction
         self.trailing_start_r = trailing_start_r
         self.trailing_distance_r = trailing_distance_r
+        self.maximum_holding_hours = maximum_holding_hours
 
     async def start(self) -> None:
         await self.database.execute("""
@@ -164,6 +165,16 @@ class CausalShadowLearningService:
         remaining = float(position["remaining_fraction"])
         partial_net = float(position["partial_net_r"])
         current_r = ((market_price-entry) if side == "LONG" else (entry-market_price))/initial_risk
+        opened_at = position.get("opened_at")
+        if opened_at:
+            opened = datetime.fromisoformat(str(opened_at).replace("Z", "+00:00"))
+            if opened.tzinfo is None:
+                opened = opened.replace(tzinfo=UTC)
+            age_hours = (datetime.now(UTC)-opened).total_seconds()/3600
+            if age_hours >= self.maximum_holding_hours:
+                exit_r = self._net_r(entry, market_price, side, remaining)
+                return ShadowAdvance(True, stop, high, low, partial, 0.0, partial_net,
+                                     partial_net+exit_r, "SHADOW_TIME_LIMIT")
         if (market_price <= stop if side == "LONG" else market_price >= stop):
             exit_r = self._net_r(entry, market_price, side, remaining)
             return ShadowAdvance(True, stop, high, low, partial, 0.0, partial_net,
