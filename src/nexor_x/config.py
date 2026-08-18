@@ -80,8 +80,9 @@ class Settings(BaseSettings):
     market_cache_ttl_seconds: float = Field(default=15.0, ge=1.0, le=300.0)
     market_stale_after_seconds: float = Field(default=120.0, ge=10.0, le=3600.0)
     market_failure_cooldown_seconds: float = Field(default=60.0, ge=5.0, le=900.0)
-    initial_paper_equity: float = Field(default=100.0, gt=0)
-    risk_per_trade_pct: float = Field(default=10.0, gt=0, le=100)
+    initial_paper_equity: float = Field(default=200.0, gt=0)
+    risk_per_trade_pct: float = Field(default=2.0, gt=0, le=100)
+    maximum_open_risk_pct: float = Field(default=10.0, gt=0, le=100)
     leverage: float = Field(default=15.0, ge=1.0, le=125.0)
     max_open_positions: int = Field(default=10, ge=1, le=100)
     hard_stop_drawdown_pct: float = Field(default=25.0, gt=0, le=100)
@@ -192,8 +193,9 @@ def _yaml_values(path: Path = Path("config/settings.yaml")) -> dict[str, Any]:
         "market_cache_ttl_seconds": market.get("cache_ttl_seconds", 15.0),
         "market_stale_after_seconds": market.get("stale_after_seconds", 120.0),
         "market_failure_cooldown_seconds": market.get("failure_cooldown_seconds", 60.0),
-        "initial_paper_equity": risk.get("initial_paper_equity", 100.0),
-        "risk_per_trade_pct": risk.get("risk_per_trade_pct", 10.0),
+        "initial_paper_equity": risk.get("initial_paper_equity", 200.0),
+        "risk_per_trade_pct": risk.get("risk_per_trade_pct", 2.0),
+        "maximum_open_risk_pct": risk.get("maximum_open_risk_pct", 10.0),
         "leverage": risk.get("leverage", 15.0),
         "max_open_positions": risk.get("max_open_positions", 10),
         "hard_stop_drawdown_pct": risk.get("hard_stop_drawdown_pct", 25.0),
@@ -263,6 +265,7 @@ def _environment_overrides() -> dict[str, Any]:
         "MARKET_FAILURE_COOLDOWN_SECONDS": "market_failure_cooldown_seconds",
         "INITIAL_PAPER_EQUITY": "initial_paper_equity",
         "RISK_PER_TRADE_PCT": "risk_per_trade_pct",
+        "MAXIMUM_OPEN_RISK_PCT": "maximum_open_risk_pct",
         "LEVERAGE": "leverage",
         "MAX_OPEN_POSITIONS": "max_open_positions",
         "HARD_STOP_DRAWDOWN_PCT": "hard_stop_drawdown_pct",

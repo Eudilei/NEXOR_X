@@ -176,7 +176,7 @@ class CausalShadowLearningService:
                 return ShadowAdvance(True, stop, high, low, partial, 0.0, partial_net,
                                      partial_net+exit_r, "SHADOW_TIME_LIMIT")
         if (market_price <= stop if side == "LONG" else market_price >= stop):
-            exit_r = self._net_r(entry, market_price, side, remaining)
+            exit_r = self._net_r(entry, stop, side, remaining)
             return ShadowAdvance(True, stop, high, low, partial, 0.0, partial_net,
                                  partial_net+exit_r, "PROTECTIVE_STOP")
         if current_r >= self.break_even_trigger_r:

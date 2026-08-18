@@ -75,7 +75,10 @@ class PaperExecutionService:
         adverse = self.slippage_rate if side == "LONG" else -self.slippage_rate
         entry_price = reference_price * (1.0 + adverse)
         stop_distance = entry_price * self.stop_loss_pct
-        risk_based_notional = risk_budget / self.stop_loss_pct
+        estimated_loss_rate = (
+            self.stop_loss_pct+self.slippage_rate+2*self.fee_rate
+        )
+        risk_based_notional = risk_budget / estimated_loss_rate
         max_notional = equity * min(leverage, self.max_notional_multiple)
         notional = min(risk_based_notional, max_notional)
         quantity = notional / entry_price

@@ -135,6 +135,10 @@ class Kernel:
             leverage=settings.leverage,
             max_open_positions=settings.max_open_positions,
             hard_stop_drawdown_pct=settings.hard_stop_drawdown_pct,
+            maximum_open_risk_pct=settings.maximum_open_risk_pct,
+            stop_loss_pct=settings.paper_stop_loss_pct,
+            fee_rate=settings.paper_fee_rate,
+            slippage_rate=settings.paper_slippage_rate,
         )
         self.paper_execution = PaperExecutionService(
             self.database, fee_rate=settings.paper_fee_rate,
@@ -166,7 +170,7 @@ class Kernel:
                 minimum_walk_forward_pass_ratio=settings.walk_forward_minimum_pass_ratio,
                 maximum_ruin_probability=settings.allocation_maximum_ruin_probability,
                 maximum_candidate_drawdown_r=settings.allocation_maximum_candidate_drawdown_r,
-                maximum_portfolio_risk_pct=settings.risk_per_trade_pct,
+                maximum_portfolio_risk_pct=settings.maximum_open_risk_pct,
                 recovery_drawdown_trigger_pct=settings.allocation_recovery_drawdown_trigger_pct,
                 hard_stop_drawdown_pct=settings.hard_stop_drawdown_pct,
                 recovery_risk_multiplier=settings.allocation_recovery_risk_multiplier,
@@ -477,7 +481,8 @@ class Kernel:
         evidences = self.evidence_engine.evaluate(state)
         preliminary = self.quant_brain.assess(state.symbol, evidences)
         calibration = await self.laboratory.estimate(
-            preliminary.raw_edge, preliminary.decision.value, state.regime.value
+            preliminary.raw_edge, preliminary.decision.value, state.regime.value,
+            symbol=state.symbol,
         )
         assessment = self.quant_brain.assess(state.symbol, evidences, calibration)
         await self.event_bus.publish(
@@ -505,7 +510,8 @@ class Kernel:
         evidences = self.evidence_engine.evaluate(state)
         preliminary = self.quant_brain.assess(state.symbol, evidences)
         report = await self.laboratory.probability_estimate(
-            preliminary.raw_edge, preliminary.decision.value, state.regime.value
+            preliminary.raw_edge, preliminary.decision.value, state.regime.value,
+            symbol=state.symbol,
         )
         result = report.to_dict()
         result.update({

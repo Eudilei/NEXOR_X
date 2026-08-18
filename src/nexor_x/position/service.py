@@ -75,7 +75,7 @@ class PositionManagementService:
 
         stop_hit = market_price <= stop if side == "LONG" else market_price >= stop
         if stop_hit:
-            closed = await self.execution.close_position(position_id, market_price, "PROTECTIVE_STOP")
+            closed = await self.execution.close_position(position_id, stop, "PROTECTIVE_STOP")
             actions.append({"type": "CLOSE", "reason": "PROTECTIVE_STOP", "result": closed})
             return self._result(position_id, symbol, current_r, stop, actions, True)
 

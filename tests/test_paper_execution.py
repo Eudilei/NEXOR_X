@@ -65,3 +65,24 @@ async def test_live_is_always_rejected(tmp_path: Path) -> None:
     assert fill.status.value == "REJECTED"
     assert fill.to_dict()["live_order_sent"] is False
     await db.stop()
+
+
+@pytest.mark.asyncio
+async def test_risk_budget_includes_stop_fees_and_slippage(tmp_path: Path) -> None:
+    db = DatabaseService(tmp_path / "x.db")
+    await db.start()
+    portfolio = PortfolioService(db, 200.0)
+    await portfolio.ensure_account()
+    svc = PaperExecutionService(
+        db, fee_rate=.0005, slippage_rate=.0003,
+        stop_loss_pct=.01, max_notional_multiple=15,
+    )
+    fill = await svc.open_from_readiness(
+        mode=OperatingMode.PAPER,
+        readiness={"symbol":"BTCUSDT", "side":"LONG", "allowed":True,
+                   "decision":"READY_FOR_PAPER", "risk_budget":4.0, "leverage":15},
+        market={"snapshot":{"price":100.0, "stale":False}},
+        portfolio=await portfolio.snapshot(),
+    )
+    assert fill.notional == pytest.approx(4.0/(.01+.0003+2*.0005))
+    await db.stop()

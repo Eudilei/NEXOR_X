@@ -46,6 +46,10 @@ class PortfolioService:
             """SELECT id, symbol, side, quantity, entry_price, notional, stop_price, opened_at
             FROM portfolio_positions WHERE status='OPEN' ORDER BY opened_at"""
         )
+        open_risk_brl = sum(
+            abs(float(r[4]) - float(r[6])) * float(r[3])
+            for r in positions if r[6] is not None
+        )
         return {
             "account_id": "PAPER",
             "equity": round(equity_f, 8),
@@ -54,6 +58,8 @@ class PortfolioService:
             "drawdown_pct": round(drawdown * 100.0, 6),
             "open_positions": int(open_positions),
             "gross_notional": round(float(gross_notional), 8),
+            "open_risk_brl": round(open_risk_brl, 8),
+            "open_risk_pct": round(open_risk_brl/equity_f*100.0, 6) if equity_f > 0 else 100.0,
             "positions": [
                 {"id": int(r[0]), "symbol": str(r[1]), "side": str(r[2]),
                  "quantity": float(r[3]), "entry_price": float(r[4]),

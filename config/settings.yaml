@@ -27,8 +27,9 @@ market:
 
 
 risk:
-  initial_paper_equity: 100.0
-  risk_per_trade_pct: 10.0
+  initial_paper_equity: 200.0
+  risk_per_trade_pct: 2.0
+  maximum_open_risk_pct: 10.0
   leverage: 15.0
   max_open_positions: 10
   hard_stop_drawdown_pct: 25.0

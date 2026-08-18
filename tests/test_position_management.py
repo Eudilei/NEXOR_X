@@ -42,5 +42,6 @@ async def test_protective_stop_closes(tmp_path: Path):
     svc=PositionManagementService(db,execution,PositionPolicy())
     result=await svc.evaluate(pid,98.9)
     assert result['closed'] is True
+    assert result['actions'][0]['result']['exit_price'] == 99.0
     assert (await portfolio.snapshot())['open_positions'] == 0
     await db.stop()

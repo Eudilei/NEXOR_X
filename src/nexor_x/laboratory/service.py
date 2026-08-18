@@ -41,11 +41,18 @@ class LaboratoryService:
             minimum_profit_factor=minimum_profit_factor, maximum_fdr=maximum_fdr,
         )
 
-    async def observations(self) -> list[OutcomeObservation]:
-        rows = await self.database.fetchall(
-            """SELECT symbol, decision, raw_edge, regime, realized_r, closed_at
-            FROM quant_observations ORDER BY closed_at ASC"""
-        )
+    async def observations(self, symbol: str | None = None) -> list[OutcomeObservation]:
+        if symbol:
+            rows = await self.database.fetchall(
+                """SELECT symbol, decision, raw_edge, regime, realized_r, closed_at
+                FROM quant_observations WHERE UPPER(symbol)=? ORDER BY closed_at ASC""",
+                (symbol.upper(),),
+            )
+        else:
+            rows = await self.database.fetchall(
+                """SELECT symbol, decision, raw_edge, regime, realized_r, closed_at
+                FROM quant_observations ORDER BY closed_at ASC"""
+            )
         return [
             OutcomeObservation(
                 symbol=str(row[0]),
@@ -59,21 +66,21 @@ class LaboratoryService:
         ]
 
     async def estimate(
-        self, raw_edge: float, decision: str, regime: str
+        self, raw_edge: float, decision: str, regime: str, *, symbol: str
     ) -> CalibrationEstimate:
         return self.calibration.estimate(
             raw_edge,
-            await self.observations(),
+            await self.observations(symbol),
             decision=decision,
             regime=regime,
         )
 
 
     async def probability_estimate(
-        self, raw_edge: float, decision: str, regime: str
+        self, raw_edge: float, decision: str, regime: str, *, symbol: str
     ) -> ProbabilityCalibrationReport:
         return self.probability.calibrate(
-            raw_edge, await self.observations(), decision=decision, regime=regime
+            raw_edge, await self.observations(symbol), decision=decision, regime=regime
         )
 
     async def report(self) -> LaboratoryReport:
