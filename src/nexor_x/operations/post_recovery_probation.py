@@ -52,7 +52,8 @@ class PostRecoveryProbationController:
         with self._lock:
             raw_state = str(degradation.get('state','NORMAL')).upper()
             protective = bool(reduce_only)
-            if self._state['active'] and self._can_finish(now, raw_state):
+            recovery_ready = self._recovery_ready(degradation)
+            if self._state['active'] and self._can_finish(now, recovery_ready):
                 self._state = {'active':False,'started_at':None,'last_entry_at':None,
                                'admitted_entries':0,'last_success_action':None}
                 self._save()
@@ -62,7 +63,7 @@ class PostRecoveryProbationController:
                 allowed = True
             elif not active:
                 allowed = bool(degradation.get('new_entries_allowed', True))
-            elif raw_state != 'NORMAL':
+            elif not recovery_ready:
                 allowed = False; block_reason='probation_requires_normal_state'
             elif int(self._state['admitted_entries']) >= self.policy.max_entries_during_probation:
                 allowed = False; block_reason='probation_entry_limit_reached'
@@ -120,8 +121,18 @@ class PostRecoveryProbationController:
                     'elapsed_seconds':self._elapsed(now),'remaining_seconds':self._remaining(now),
                     'live_allowed':False,'evaluated_at':now.isoformat()}
 
-    def _can_finish(self, now: datetime, raw_state: str) -> bool:
-        return self._elapsed(now) >= self.policy.probation_seconds and raw_state == 'NORMAL'
+    def _can_finish(self, now: datetime, recovery_ready: bool) -> bool:
+        return self._elapsed(now) >= self.policy.probation_seconds and recovery_ready
+    @staticmethod
+    def _recovery_ready(degradation: dict[str, Any]) -> bool:
+        raw_state = str(degradation.get('state', 'NORMAL')).upper()
+        if raw_state == 'NORMAL':
+            return True
+        return bool(
+            raw_state == 'CAUTION'
+            and 'shadow_recovery_confirmed' in set(degradation.get('recovery_reasons') or [])
+            and set(degradation.get('caution_reasons') or []).issubset({'evidence_not_certified'})
+        )
     def _entry_interval_elapsed(self, now: datetime) -> bool:
         last=self._parse_dt(self._state.get('last_entry_at'))
         return True if last is None else (now-last).total_seconds() >= self.policy.min_entry_interval_seconds

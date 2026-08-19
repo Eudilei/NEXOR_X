@@ -22,6 +22,15 @@ def caution() -> dict[str, object]:
     }
 
 
+def shadow_recovery_caution() -> dict[str, object]:
+    return {
+        "state": "CAUTION",
+        "new_entries_allowed": True,
+        "caution_reasons": ["evidence_not_certified"],
+        "recovery_reasons": ["shadow_recovery_confirmed"],
+    }
+
+
 def test_probation_starts_persisted(tmp_path) -> None:
     state_file = tmp_path / "probation.json"
     t0 = datetime(2026, 8, 13, 10, 0, tzinfo=UTC)
@@ -151,3 +160,16 @@ def test_probation_finishes_after_one_hour_when_normal(tmp_path) -> None:
 
     assert report["active"] is False
     assert report["allowed"] is True
+
+
+def test_shadow_recovery_caution_allows_reduced_probation_entry(tmp_path) -> None:
+    guard = PostRecoveryProbationController(
+        state_path=tmp_path / "probation.json"
+    )
+    t0 = datetime(2026, 8, 13, 10, 0, tzinfo=UTC)
+    guard.start(now=t0)
+    report = guard.admit(
+        degradation=shadow_recovery_caution(), action="PAPER_OPEN", now=t0
+    )
+    assert report["allowed"] is True
+    assert report["admitted_entries"] == 1

@@ -20,6 +20,9 @@ class EvidenceSnapshot:
     supervisor_testnet_allowed: bool
     recent_trades: int = 0
     loss_streak: int = 0
+    recent_shadow_samples: int = 0
+    recent_shadow_profit_factor: float = 0.0
+    recent_shadow_expected_r: float = 0.0
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -42,6 +45,7 @@ class EvidenceCollector:
             recent=True
         )
         recent_trades, loss_streak = await self._recent_trade_stats()
+        shadow_samples, shadow_pf, shadow_expected_r = await self._shadow_metrics()
         drawdown_pct = await self._drawdown_pct()
         operational_incidents = await self._operational_incidents()
         critical_test_failures = await self._critical_test_failures()
@@ -82,6 +86,9 @@ class EvidenceCollector:
             ),
             recent_trades=recent_trades,
             loss_streak=loss_streak,
+            recent_shadow_samples=shadow_samples,
+            recent_shadow_profit_factor=shadow_pf,
+            recent_shadow_expected_r=shadow_expected_r,
         )
 
     async def _count_paper_trades(self) -> int:
@@ -183,6 +190,34 @@ class EvidenceCollector:
                 break
             streak += 1
         return len(values), streak
+
+    async def _shadow_metrics(self) -> tuple[int, float, float]:
+        if not await self._table_exists("quant_observations"):
+            return 0, 0.0, 0.0
+        try:
+            cutoff = None
+            if await self._table_exists("portfolio_positions"):
+                latest = await self.database.fetchall(
+                    "SELECT MAX(closed_at) FROM portfolio_positions "
+                    "WHERE status='CLOSED'"
+                )
+                cutoff = latest[0][0] if latest and latest[0][0] else None
+            where = " WHERE closed_at > ?" if cutoff else ""
+            parameters = (cutoff,) if cutoff else ()
+            rows = await self.database.fetchall(
+                "SELECT realized_r FROM quant_observations"
+                f"{where} ORDER BY id DESC LIMIT 100",
+                parameters,
+            )
+        except Exception:
+            return 0, 0.0, 0.0
+        values = [float(row[0]) for row in rows]
+        if not values:
+            return 0, 0.0, 0.0
+        profit = sum(value for value in values if value > 0)
+        loss = abs(sum(value for value in values if value < 0))
+        profit_factor = profit / loss if loss else (999.0 if profit else 0.0)
+        return len(values), round(profit_factor, 6), round(sum(values) / len(values), 6)
 
     async def _drawdown_pct(self) -> float:
         table = await self._first_existing_table(

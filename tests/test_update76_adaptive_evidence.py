@@ -47,3 +47,36 @@ def test_guard_accepts_paper_trade_count_from_evidence() -> None:
     )
     assert report["metrics"]["enough_sample"] is True
     assert report["new_entries_allowed"] is False
+
+
+@pytest.mark.asyncio
+async def test_only_shadow_after_latest_paper_close_counts_for_recovery(tmp_path: Path) -> None:
+    database = DatabaseService(tmp_path / "shadow_recovery.db")
+    await database.start()
+    try:
+        await database.execute(
+            "INSERT INTO portfolio_accounts "
+            "(account_id,equity,peak_equity,realized_pnl,updated_at) "
+            "VALUES ('PAPER',190,200,-10,'2026-08-19T00:00:00Z')"
+        )
+        await database.execute(
+            "INSERT INTO portfolio_positions "
+            "(symbol,side,quantity,entry_price,notional,status,opened_at,"
+            "closed_at,realized_pnl) VALUES "
+            "('BTCUSDT','LONG',1,10,10,'CLOSED',?,?,?)",
+            ("2026-08-19T00:00:00Z", "2026-08-19T01:00:00Z", -1.0),
+        )
+        for index in range(30):
+            await database.execute(
+                "INSERT INTO quant_observations "
+                "(symbol,decision,raw_edge,regime,realized_r,closed_at) "
+                "VALUES (?,?,?,?,?,?)",
+                (f"S{index}USDT", "LONG_BIAS", .5, "TREND_UP", .2,
+                 f"2026-08-19T02:{index:02d}:00Z"),
+            )
+        evidence = await EvidenceCollector(database).collect()
+        assert evidence.recent_shadow_samples == 30
+        assert evidence.recent_shadow_profit_factor == 999.0
+        assert evidence.recent_shadow_expected_r == pytest.approx(.2)
+    finally:
+        await database.stop()

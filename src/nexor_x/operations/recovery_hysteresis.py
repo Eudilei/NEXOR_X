@@ -54,7 +54,17 @@ class RecoveryHysteresisController:
             self._state["last_healthy_check_at"] = None
 
         elif self._state["latched"]:
-            if raw_state == "NORMAL":
+            recovery_reasons = set(degradation.get("recovery_reasons") or [])
+            caution_reasons = set(degradation.get("caution_reasons") or [])
+            healthy_for_recovery = bool(
+                raw_state == "NORMAL"
+                or (
+                    raw_state == "CAUTION"
+                    and "shadow_recovery_confirmed" in recovery_reasons
+                    and caution_reasons.issubset({"evidence_not_certified"})
+                )
+            )
+            if healthy_for_recovery:
                 if self._can_count_healthy_check(now):
                     self._state["healthy_checks"] = (
                         int(self._state.get("healthy_checks", 0)) + 1

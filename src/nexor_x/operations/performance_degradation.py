@@ -14,6 +14,9 @@ class DegradationPolicy:
     block_drawdown_pct: float = 15.0
     caution_loss_streak: int = 4
     block_loss_streak: int = 6
+    minimum_shadow_recovery_samples: int = 30
+    shadow_recovery_profit_factor: float = 1.20
+    shadow_recovery_expected_r: float = 0.05
 
 
 class PerformanceDegradationGuard:
@@ -51,11 +54,21 @@ class PerformanceDegradationGuard:
             "losing_streak",
             default=0.0,
         ))
+        shadow_samples = int(self._number(
+            recent, "recent_shadow_samples", "shadow_samples", default=0.0
+        ))
+        shadow_profit_factor = self._number(
+            recent, "recent_shadow_profit_factor", "shadow_profit_factor", default=0.0
+        )
+        shadow_expected_r = self._number(
+            recent, "recent_shadow_expected_r", "shadow_expected_r", default=0.0
+        )
 
         enough_sample = recent_trades >= self.policy.min_recent_trades
 
         hard_reasons: list[str] = []
         caution_reasons: list[str] = []
+        recovery_reasons: list[str] = []
 
         if enough_sample:
             if profit_factor < self.policy.block_profit_factor:
@@ -72,6 +85,20 @@ class PerformanceDegradationGuard:
             hard_reasons.append("loss_streak_critical")
         elif loss_streak >= self.policy.caution_loss_streak:
             caution_reasons.append("loss_streak_elevated")
+
+        shadow_recovery_healthy = bool(
+            shadow_samples >= self.policy.minimum_shadow_recovery_samples
+            and shadow_profit_factor >= self.policy.shadow_recovery_profit_factor
+            and shadow_expected_r >= self.policy.shadow_recovery_expected_r
+        )
+        recoverable = {"profit_factor_below_1", "loss_streak_critical"}
+        if hard_reasons and set(hard_reasons).issubset(recoverable) and shadow_recovery_healthy:
+            hard_reasons.clear()
+            caution_reasons = [
+                reason for reason in caution_reasons
+                if reason not in {"profit_factor_weak", "loss_streak_elevated"}
+            ]
+            recovery_reasons.append("shadow_recovery_confirmed")
 
         # Se já havia certificação e ela deixou de ser válida, trata como cautela.
         if certification is not None and not bool(
@@ -96,12 +123,17 @@ class PerformanceDegradationGuard:
             "live_allowed": False,
             "hard_reasons": hard_reasons,
             "caution_reasons": caution_reasons,
+            "recovery_reasons": recovery_reasons,
             "metrics": {
                 "recent_trades": recent_trades,
                 "profit_factor": profit_factor,
                 "drawdown_pct": drawdown_pct,
                 "loss_streak": loss_streak,
                 "enough_sample": enough_sample,
+                "shadow_samples": shadow_samples,
+                "shadow_profit_factor": shadow_profit_factor,
+                "shadow_expected_r": shadow_expected_r,
+                "shadow_recovery_healthy": shadow_recovery_healthy,
             },
             "policy": {
                 "min_recent_trades": self.policy.min_recent_trades,
@@ -111,6 +143,9 @@ class PerformanceDegradationGuard:
                 "block_drawdown_pct": self.policy.block_drawdown_pct,
                 "caution_loss_streak": self.policy.caution_loss_streak,
                 "block_loss_streak": self.policy.block_loss_streak,
+                "minimum_shadow_recovery_samples": self.policy.minimum_shadow_recovery_samples,
+                "shadow_recovery_profit_factor": self.policy.shadow_recovery_profit_factor,
+                "shadow_recovery_expected_r": self.policy.shadow_recovery_expected_r,
             },
             "evaluated_at": datetime.now(UTC).isoformat(),
             "safety_note": (

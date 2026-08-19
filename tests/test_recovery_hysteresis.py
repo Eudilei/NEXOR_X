@@ -31,6 +31,16 @@ def caution() -> dict[str, object]:
     }
 
 
+def shadow_recovery_caution() -> dict[str, object]:
+    return {
+        "state": "CAUTION",
+        "new_entries_allowed": True,
+        "hard_reasons": [],
+        "caution_reasons": ["evidence_not_certified"],
+        "recovery_reasons": ["shadow_recovery_confirmed"],
+    }
+
+
 def test_block_is_latched_and_persisted(tmp_path) -> None:
     state_file = tmp_path / "recovery.json"
     t0 = datetime(2026, 8, 13, 10, 0, tzinfo=UTC)
@@ -130,3 +140,18 @@ def test_new_blocked_state_resets_recovery_progress(tmp_path) -> None:
     assert report["latched"] is True
     assert report["healthy_checks"] == 0
     assert report["new_entries_allowed"] is False
+
+
+def test_shadow_recovery_caution_can_complete_hysteresis(tmp_path) -> None:
+    guard = RecoveryHysteresisController(
+        state_path=tmp_path / "recovery.json"
+    )
+    t0 = datetime(2026, 8, 13, 10, 0, tzinfo=UTC)
+    guard.evaluate(degradation=blocked(), now=t0)
+    guard.evaluate(degradation=shadow_recovery_caution(), now=t0 + timedelta(minutes=5))
+    guard.evaluate(degradation=shadow_recovery_caution(), now=t0 + timedelta(minutes=10))
+    report = guard.evaluate(
+        degradation=shadow_recovery_caution(), now=t0 + timedelta(minutes=15)
+    )
+    assert report["transition"] == "RECOVERED"
+    assert report["new_entries_allowed"] is True

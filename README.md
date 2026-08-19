@@ -1,6 +1,29 @@
-# NEXOR X 0.7.0
+# NEXOR X 0.77.0
 
 Plataforma quantitativa em desenvolvimento, com execução real bloqueada.
+
+## Update 77 — recuperação controlada
+
+- O bloqueio por PF ou sequência de perdas não fica mais permanente.
+- Somente resultados shadow fechados depois do último trade PAPER contam para
+  a recuperação: mínimo 30, PF de 1,20 e Expected R de 0,05.
+- A recuperação ainda exige cooldown e três confirmações espaçadas.
+- Depois disso, a probation existente libera entradas com 25%, 50% e 75% da
+  exposição normal e limita frequência e quantidade.
+- Cada novo fechamento PAPER invalida a amostra shadow anterior.
+- Drawdown de 15% jamais pode ser liberado por evidência shadow.
+- LIVE continua bloqueado.
+
+## Update 76 — proteção adaptativa PAPER corrigida
+
+- A evidência operacional lê as posições PAPER realmente fechadas em
+  `portfolio_positions`, incluindo o PnL líquido após taxas.
+- A amostra recente inclui quantidade de trades e sequência atual de perdas.
+- O drawdown é calculado por `equity` e `peak_equity`.
+- O guard de degradação recebe a evidência interna correta do ciclo.
+- Novas entradas podem ser bloqueadas por PF recente abaixo de 1, drawdown de
+  15% ou seis perdas consecutivas; posições existentes continuam protegidas.
+- LIVE continua bloqueado.
 
 ## Sprint 6
 

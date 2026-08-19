@@ -89,3 +89,38 @@ def test_fractional_drawdown_is_normalized() -> None:
     )
     assert report["metrics"]["drawdown_pct"] == 11.0
     assert report["state"] == "CAUTION"
+
+
+def test_healthy_shadow_can_start_controlled_recovery() -> None:
+    report = PerformanceDegradationGuard().evaluate(
+        recent={
+            "recent_trades": 25,
+            "recent_profit_factor": 0.90,
+            "drawdown_pct": 8.0,
+            "loss_streak": 6,
+            "recent_shadow_samples": 40,
+            "recent_shadow_profit_factor": 1.45,
+            "recent_shadow_expected_r": 0.12,
+        },
+        certification={"evidence_certified": True},
+    )
+    assert report["state"] == "NORMAL"
+    assert report["new_entries_allowed"] is True
+    assert "shadow_recovery_confirmed" in report["recovery_reasons"]
+
+
+def test_shadow_never_overrides_drawdown_hard_stop() -> None:
+    report = PerformanceDegradationGuard().evaluate(
+        recent={
+            "recent_trades": 25,
+            "recent_profit_factor": 0.90,
+            "drawdown_pct": 16.0,
+            "loss_streak": 6,
+            "recent_shadow_samples": 100,
+            "recent_shadow_profit_factor": 2.0,
+            "recent_shadow_expected_r": 0.3,
+        },
+        certification={"evidence_certified": True},
+    )
+    assert report["state"] == "BLOCKED"
+    assert "drawdown_limit_reached" in report["hard_reasons"]
