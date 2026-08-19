@@ -18,6 +18,8 @@ class EvidenceSnapshot:
     recovery_ok: bool
     supervisor_paper_allowed: bool
     supervisor_testnet_allowed: bool
+    recent_trades: int = 0
+    loss_streak: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -39,6 +41,7 @@ class EvidenceCollector:
         recent_profit_factor, recent_expected_r = await self._performance_metrics(
             recent=True
         )
+        recent_trades, loss_streak = await self._recent_trade_stats()
         drawdown_pct = await self._drawdown_pct()
         operational_incidents = await self._operational_incidents()
         critical_test_failures = await self._critical_test_failures()
@@ -77,10 +80,13 @@ class EvidenceCollector:
             supervisor_testnet_allowed=bool(
                 supervisor and supervisor.get("testnet_allowed", False)
             ),
+            recent_trades=recent_trades,
+            loss_streak=loss_streak,
         )
 
     async def _count_paper_trades(self) -> int:
         candidates = (
+            ("portfolio_positions", "status = 'CLOSED'"),
             ("trades", "mode = 'PAPER'"),
             ("execution_trades", "mode = 'PAPER'"),
             ("paper_trades", "1 = 1"),
@@ -100,7 +106,7 @@ class EvidenceCollector:
         recent: bool,
     ) -> tuple[float, float]:
         table = await self._first_existing_table(
-            ("trades", "execution_trades", "paper_trades")
+            ("portfolio_positions", "trades", "execution_trades", "paper_trades")
         )
         if table is None:
             return 0.0, 0.0
@@ -109,7 +115,7 @@ class EvidenceCollector:
         pnl_column = next(
             (
                 name
-                for name in ("pnl_r", "realized_r", "result_r", "pnl")
+                for name in ("pnl_r", "realized_r", "result_r", "pnl", "realized_pnl")
                 if name in columns
             ),
             None,
@@ -122,10 +128,13 @@ class EvidenceCollector:
         if recent and "id" in columns:
             order = " ORDER BY id DESC"
 
+        where = f" WHERE {pnl_column} IS NOT NULL"
+        if table == "portfolio_positions" and "status" in columns:
+            where += " AND status='CLOSED'"
         try:
             rows = await self.database.fetchall(
                 f"SELECT {pnl_column} FROM {table}"
-                f" WHERE {pnl_column} IS NOT NULL{order}{limit}"
+                f"{where}{order}{limit}"
             )
         except Exception:
             return 0.0, 0.0
@@ -144,6 +153,37 @@ class EvidenceCollector:
         expected_r = sum(values) / len(values)
         return round(profit_factor, 6), round(expected_r, 6)
 
+    async def _recent_trade_stats(self) -> tuple[int, int]:
+        table = await self._first_existing_table(
+            ("portfolio_positions", "trades", "execution_trades", "paper_trades")
+        )
+        if table is None:
+            return 0, 0
+        columns = await self._columns(table)
+        pnl_column = next((name for name in
+            ("pnl_r", "realized_r", "result_r", "pnl", "realized_pnl")
+            if name in columns), None)
+        if pnl_column is None:
+            return 0, 0
+        where = ""
+        if table == "portfolio_positions" and "status" in columns:
+            where = " AND status='CLOSED'"
+        order = " ORDER BY id DESC" if "id" in columns else ""
+        try:
+            rows = await self.database.fetchall(
+                f"SELECT {pnl_column} FROM {table} WHERE {pnl_column} IS NOT NULL"
+                f"{where}{order} LIMIT 100"
+            )
+        except Exception:
+            return 0, 0
+        values = [float(row[0]) for row in rows]
+        streak = 0
+        for value in values:
+            if value >= 0:
+                break
+            streak += 1
+        return len(values), streak
+
     async def _drawdown_pct(self) -> float:
         table = await self._first_existing_table(
             ("portfolio_accounts", "portfolio_account")
@@ -152,12 +192,19 @@ class EvidenceCollector:
             return 100.0
 
         columns = await self._columns(table)
-        if "drawdown_pct" not in columns:
-            return 100.0
-
         try:
+            if "drawdown_pct" in columns:
+                expression = "drawdown_pct"
+            elif {"equity", "peak_equity"}.issubset(columns):
+                expression = (
+                    "CASE WHEN peak_equity > 0 THEN "
+                    "MAX(0.0, (peak_equity-equity)*100.0/peak_equity) ELSE 0.0 END"
+                )
+            else:
+                return 100.0
+            order = " ORDER BY id DESC" if "id" in columns else ""
             rows = await self.database.fetchall(
-                f"SELECT drawdown_pct FROM {table} ORDER BY id DESC LIMIT 1"
+                f"SELECT {expression} FROM {table}{order} LIMIT 1"
             )
         except Exception:
             return 100.0

@@ -33,6 +33,7 @@ class PerformanceDegradationGuard:
             "recent_trades",
             "closed_trades",
             "trades",
+            "paper_trades",
             default=0.0,
         ))
         profit_factor = self._number(

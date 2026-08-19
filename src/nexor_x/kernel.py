@@ -1281,10 +1281,10 @@ class Kernel:
     async def performance_degradation_status(
         self,
     ) -> dict[str, object]:
-        cycle = await self.validation_cycle_status()
+        evidence = await self.evidence_collector.collect()
         certification = await self.live_certification_status()
         report = self.performance_degradation_guard.evaluate(
-            recent=cycle,
+            recent=evidence.to_dict(),
             certification=certification,
         )
         await self.event_bus.publish(Event(
